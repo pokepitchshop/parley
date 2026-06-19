@@ -71,8 +71,8 @@ resource "azurerm_container_app" "parley" {
   }
 
   template {
-    min_replicas = 1
-    max_replicas = 2
+    min_replicas = var.min_replicas
+    max_replicas = var.max_replicas
 
     container {
       name   = "parley"

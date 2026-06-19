@@ -5,5 +5,12 @@ location        = "eastus2"
 environment     = "dev"
 project         = "parley"
 
+# app layer (cheap dev defaults — scale to zero when idle)
+min_replicas = 0
+max_replicas = 2
+
+# platform layer (cap log ingestion so logs can't surprise-bill)
+log_analytics_daily_quota_gb = 0.5
+
 # NOTE: app-layer secrets (twilio_account_sid, openai_key_secret_id, twilio_token_secret_id)
 # do NOT go here. Set them as workspace variables on the parley-app HCP workspace.

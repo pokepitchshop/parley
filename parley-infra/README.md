@@ -12,12 +12,46 @@ Each layer is its own state (its own HCP workspace). The `app` layer reads `plat
 outputs via `terraform_remote_state`. Environments (dev/staging/prod) are the **same code** applied
 to different workspaces with different values — not separate folders.
 
+## Current Azure vs parley-infra (as of subscription audit)
+
+**Parley has not been applied yet.** No `parley-*` resource groups exist. The subscription
+currently runs legacy **Oldman** workloads in the `PokePitchShop` resource group (`centralus`):
+
+| Live resource | Type | SKU / notes | parley-infra equivalent |
+|---|---|---|---|
+| *(none yet)* | Resource group | — | `foundation/` → `parley-dev-rg` |
+| `identity-oldman` | User-assigned identity | — | `foundation/` → `parley-dev-id` |
+| `oldman` | Linux App Service | F1 Free plan | **Replaced by** `app/` Container App |
+| `plan-oldman` | App Service plan | F1 Free | **Not used** — ACA consumption billing |
+| `intelligentoldmanbrain` | PostgreSQL Flexible | B1ms burstable | **Not in Parley** (no DB in v1) |
+| `pokepitchshophub` | Event Hubs | Standard (~$13/mo MTD) | **Not in Parley** |
+| `pokepitchstorage` | Storage account | Standard LRS | **Not in Parley** |
+| `ws-*` + `appinsights-oldman` | Log Analytics + App Insights | — | `platform/` Log Analytics only |
+| *(not deployed)* | ACR, Key Vault, Azure OpenAI, Container Apps | — | `platform/` + `app/` |
+
+Parley is a **greenfield stack** in `eastus2` (OpenAI availability), separate from Oldman.
+Before first apply, register Container Apps: `az provider register -n Microsoft.App --wait`.
+
+## Cost model (cheap-by-default)
+
+| Resource | Tier in code | Idle cost |
+|---|---|---|
+| Container App | 0.5 vCPU / 1Gi, `min_replicas = 0` (dev) | ~$0 compute when scaled to zero |
+| Container Apps Environment | Consumption (no dedicated profile) | No base fee |
+| ACR | Basic | ~$5/mo |
+| Key Vault | Standard, RBAC | ~$0 at this volume |
+| Azure OpenAI | gpt-4o-mini, pay-per-token | ~$0 idle; `openai_capacity` is TPM cap only |
+| Log Analytics | PerGB2018, 0.5 GB/day quota, 30-day retention | Capped ingestion |
+
+Set `min_replicas = 1` only in prod if cold-start latency exceeds Twilio's webhook timeout.
+
 ## One-time bootstrap
 1. Have an Azure subscription and run `az login`.
-2. Set up Terraform -> Azure auth (an OIDC service principal, or ARM_* creds on the HCP workspaces).
-3. In HCP Terraform (`pokepitchshop-org`) create three workspaces: `parley-foundation`, `parley-platform`, `parley-app`.
-4. Put secrets (TWILIO_*, the Key Vault secret IDs) as **workspace variables** on `parley-app` — never in git.
-5. Copy `environments/dev.tfvars.example` -> `dev.tfvars` and fill in `subscription_id`.
+2. Register providers: `az provider register -n Microsoft.App --wait`.
+3. Set up Terraform -> Azure auth (an OIDC service principal, or ARM_* creds on the HCP workspaces).
+4. In HCP Terraform (`pokepitchshop-org`) create three workspaces: `parley-foundation`, `parley-platform`, `parley-app`.
+5. Put secrets (TWILIO_*, the Key Vault secret IDs) as **workspace variables** on `parley-app` — never in git.
+6. Copy `environments/dev.tfvars.example` -> `dev.tfvars` and fill in `subscription_id`.
 
 ## Apply order (foundation -> platform -> app)
 ```

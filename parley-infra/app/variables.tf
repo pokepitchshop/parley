@@ -24,6 +24,18 @@ variable "image_tag" {
   default     = "latest"
 }
 
+variable "min_replicas" {
+  type        = number
+  description = "Minimum Container App replicas. Use 0 in dev (scale-to-zero, ~$0 idle). Use 1 in prod to avoid cold-start webhook timeouts."
+  default     = 0
+}
+
+variable "max_replicas" {
+  type        = number
+  description = "Maximum Container App replicas under load."
+  default     = 2
+}
+
 # --- Secrets: set these as HCP workspace variables on parley-app, not in git ---
 variable "twilio_account_sid" {
   type        = string
