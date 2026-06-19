@@ -29,3 +29,15 @@ variable "openai_capacity" {
   description = "Tokens-per-minute capacity (in thousands) for the deployment."
   default     = 10
 }
+
+variable "log_analytics_daily_quota_gb" {
+  type        = number
+  description = "Daily ingestion cap (GB) for Log Analytics. Prevents log surprise-billing."
+  default     = 0.5
+}
+
+variable "log_analytics_retention_days" {
+  type        = number
+  description = "Log Analytics retention in days."
+  default     = 30
+}

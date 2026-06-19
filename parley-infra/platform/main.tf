@@ -87,7 +87,8 @@ resource "azurerm_log_analytics_workspace" "logs" {
   resource_group_name = local.rg_name
   location            = local.location
   sku                 = "PerGB2018"
-  retention_in_days   = 30
+  retention_in_days   = var.log_analytics_retention_days
+  daily_quota_gb      = var.log_analytics_daily_quota_gb
 }
 
 resource "azurerm_container_app_environment" "env" {
