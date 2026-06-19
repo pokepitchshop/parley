@@ -1,0 +1,9 @@
+# Copy to dev.tfvars and fill in. dev.tfvars is gitignored.
+# Shared, non-secret config read by all three layers.
+subscription_id = "00000000-0000-0000-0000-000000000000" # TODO: your Azure subscription ID
+location        = "eastus2"
+environment     = "dev"
+project         = "parley"
+
+# NOTE: app-layer secrets (twilio_account_sid, openai_key_secret_id, twilio_token_secret_id)
+# do NOT go here. Set them as workspace variables on the parley-app HCP workspace.

@@ -1,0 +1,102 @@
+### Secrets & credentials — never commit ###
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Spring Boot local overrides (Twilio, OpenAI, Mongo, etc.)
+application-local.properties
+application-local.yml
+application-local.yaml
+application-*.local.properties
+application-*.local.yml
+application-*.local.yaml
+**/application-local.*
+**/*-local.properties
+**/*-local.yml
+**/*-local.yaml
+
+# Private keys & certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.cer
+
+# SSH private keys
+id_rsa
+id_ed25519
+id_ecdsa
+
+# Cloud credential files
+credentials.json
+**/service-account*.json
+**/serviceAccountKey.json
+.netrc
+.azure/
+
+# Generic secret filenames
+**/secrets/
+**/*.secret
+**/*.secrets
+**/secrets.json
+**/secrets.yml
+
+# ngrok (local dev tunneling)
+.ngrok2/
+ngrok.yml
+ngrok.yaml
+
+# Docker local overrides
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# Cursor (local AI config, MCP tokens)
+.cursor/
+
+# Terraform secrets — see also parley-infra/.gitignore
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Build / Gradle ###
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
