@@ -52,9 +52,11 @@ class VoiceControllerTest {
 				</Response>
 				""";
 
-		given(voiceTwiMLService.respond(eq("What are your hours?"))).willReturn(twiml);
+		given(voiceTwiMLService.respond(eq("CA123"), eq("What are your hours?"))).willReturn(twiml);
 
-		mockMvc.perform(post("/voice/respond").param("SpeechResult", "What are your hours?"))
+		mockMvc.perform(post("/voice/respond")
+						.param("CallSid", "CA123")
+						.param("SpeechResult", "What are your hours?"))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
 				.andExpect(content().xml(twiml));
@@ -67,7 +69,7 @@ class VoiceControllerTest {
 				<Response><Redirect method="POST">/voice</Redirect></Response>
 				""";
 
-		given(voiceTwiMLService.respond(eq(null))).willReturn(twiml);
+		given(voiceTwiMLService.respond(null, null)).willReturn(twiml);
 
 		mockMvc.perform(post("/voice/respond"))
 				.andExpect(status().isOk())
