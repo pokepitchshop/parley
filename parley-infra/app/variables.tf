@@ -52,3 +52,8 @@ variable "twilio_token_secret_id" {
   type        = string
   description = "Key Vault secret ID (versionless URI) holding the Twilio auth token."
 }
+
+variable "mongodb_uri_secret_id" {
+  type        = string
+  description = "Key Vault secret ID (versionless URI) holding the MongoDB connection string (Atlas or Cosmos)."
+}

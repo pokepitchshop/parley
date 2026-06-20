@@ -58,6 +58,12 @@ resource "azurerm_container_app" "parley" {
     identity            = local.identity_id
   }
 
+  secret {
+    name                = "mongodb-uri"
+    key_vault_secret_id = var.mongodb_uri_secret_id
+    identity            = local.identity_id
+  }
+
   # Public HTTPS endpoint Twilio posts to.
   ingress {
     external_enabled = true
@@ -82,6 +88,10 @@ resource "azurerm_container_app" "parley" {
 
       # Spring relaxed binding: SPRING_AI_AZURE_OPENAI_ENDPOINT -> spring.ai.azure.openai.endpoint
       env {
+        name  = "SPRING_PROFILES_ACTIVE"
+        value = "azure"
+      }
+      env {
         name  = "SPRING_AI_AZURE_OPENAI_ENDPOINT"
         value = local.openai_endpoint
       }
@@ -100,6 +110,26 @@ resource "azurerm_container_app" "parley" {
       env {
         name        = "TWILIO_AUTH_TOKEN"
         secret_name = "twilio-auth-token"
+      }
+      env {
+        name        = "SPRING_DATA_MONGODB_URI"
+        secret_name = "mongodb-uri"
+      }
+
+      liveness_probe {
+        transport               = "HTTP"
+        port                    = 8080
+        path                    = "/health"
+        interval_seconds        = 10
+        failure_count_threshold = 3
+      }
+
+      readiness_probe {
+        transport               = "HTTP"
+        port                    = 8080
+        path                    = "/health"
+        interval_seconds        = 5
+        success_count_threshold = 1
       }
     }
   }

@@ -1,4 +1,17 @@
-# Twilio public URL (local dev)
+# Twilio public URL
+
+Twilio voice webhooks must hit a **public HTTPS URL**.
+
+| Environment | URL source | Guide |
+|---|---|---|
+| **Azure (stable)** | `terraform output app_url` from `parley-infra/app` | [docs/azure-deploy.md](azure-deploy.md) |
+| **Local dev** | ngrok tunnel to `localhost:8080` | This doc (below) |
+
+For production and to retire ngrok, deploy to Azure Container Apps first ([POK-25](https://linear.app/pokepitchshop/issue/POK-25)).
+
+---
+
+# Local dev (ngrok)
 
 Twilio voice webhooks must hit a **public HTTPS URL**. For local development, tunnel Parley with [ngrok](https://ngrok.com/).
 
