@@ -15,6 +15,16 @@ public class VoiceProperties {
 	 */
 	private int speechTimeout = 3;
 
+	/**
+	 * Maximum caller/agent exchanges before Parley ends the call gracefully.
+	 */
+	private int maxTurnsPerCall = 25;
+
+	/**
+	 * Maximum tool invocations allowed per call (enforced when Arcade tools are wired).
+	 */
+	private int maxToolCallsPerCall = 5;
+
 	public String getSayVoice() {
 		return sayVoice;
 	}
@@ -29,6 +39,22 @@ public class VoiceProperties {
 
 	public void setSpeechTimeout(int speechTimeout) {
 		this.speechTimeout = speechTimeout;
+	}
+
+	public int getMaxTurnsPerCall() {
+		return maxTurnsPerCall;
+	}
+
+	public void setMaxTurnsPerCall(int maxTurnsPerCall) {
+		this.maxTurnsPerCall = maxTurnsPerCall;
+	}
+
+	public int getMaxToolCallsPerCall() {
+		return maxToolCallsPerCall;
+	}
+
+	public void setMaxToolCallsPerCall(int maxToolCallsPerCall) {
+		this.maxToolCallsPerCall = maxToolCallsPerCall;
 	}
 
 }

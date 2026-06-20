@@ -6,11 +6,17 @@ import org.springframework.stereotype.Service;
 
 import com.pokepitchshop.parley.caller.CallerContext;
 import com.pokepitchshop.parley.caller.CallerService;
+import com.pokepitchshop.parley.guardrails.AgentGuardrails;
+import com.pokepitchshop.parley.guardrails.CallLimitService;
+import com.pokepitchshop.parley.guardrails.OutOfScopeDetector;
+import com.pokepitchshop.parley.guardrails.ToolCallGuardrail;
+import com.pokepitchshop.parley.guardrails.ToolTurnDetector;
 import com.pokepitchshop.parley.transcript.TranscriptService;
 import com.twilio.http.HttpMethod;
 import com.twilio.twiml.TwiMLException;
 import com.twilio.twiml.VoiceResponse;
 import com.twilio.twiml.voice.Gather;
+import com.twilio.twiml.voice.Hangup;
 import com.twilio.twiml.voice.Redirect;
 import com.twilio.twiml.voice.Say;
 
@@ -29,15 +35,31 @@ public class VoiceTwiMLService {
 
 	private final CallerService callerService;
 
+	private final CallLimitService callLimitService;
+
+	private final OutOfScopeDetector outOfScopeDetector;
+
+	private final ToolTurnDetector toolTurnDetector;
+
+	private final ToolCallGuardrail toolCallGuardrail;
+
 	public VoiceTwiMLService(
 			ChatClient chatClient,
 			VoiceProperties voiceProperties,
 			TranscriptService transcriptService,
-			CallerService callerService) {
+			CallerService callerService,
+			CallLimitService callLimitService,
+			OutOfScopeDetector outOfScopeDetector,
+			ToolTurnDetector toolTurnDetector,
+			ToolCallGuardrail toolCallGuardrail) {
 		this.chatClient = chatClient;
 		this.voiceProperties = voiceProperties;
 		this.transcriptService = transcriptService;
 		this.callerService = callerService;
+		this.callLimitService = callLimitService;
+		this.outOfScopeDetector = outOfScopeDetector;
+		this.toolTurnDetector = toolTurnDetector;
+		this.toolCallGuardrail = toolCallGuardrail;
 	}
 
 	public String openingResponse(String fromNumber) throws TwiMLException {
@@ -56,15 +78,45 @@ public class VoiceTwiMLService {
 		if (speechResult == null || speechResult.isBlank()) {
 			return redirectToOpening();
 		}
+		if (callLimitService.hasReachedTurnLimit(callSid)) {
+			return callLimitClosingResponse();
+		}
+		var cannedDecline = outOfScopeDetector.cannedDecline(speechResult);
+		if (cannedDecline.isPresent()) {
+			String reply = cannedDecline.get();
+			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
+			return conversationTurnResponse(reply);
+		}
+		if (toolTurnDetector.looksLikeToolAction(speechResult) && toolCallGuardrail.isBlocked(callSid)) {
+			String reply = toolCallGuardrail.blockedToolMessage();
+			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
+			return conversationTurnResponse(reply);
+		}
 		CallerContext callerContext = callerService.contextFor(fromNumber);
-		String reply = chatClient.prompt()
-				.system(callerContext.systemPromptSnippet())
+		var prompt = chatClient.prompt()
+				.system(callerContext.systemPromptSnippet());
+		if (toolTurnDetector.looksLikeToolAction(speechResult)) {
+			prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
+		}
+		String reply = prompt
 				.user(speechResult)
 				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
 				.call()
 				.content();
 		transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
 		return conversationTurnResponse(reply);
+	}
+
+	public String callLimitClosingResponse() throws TwiMLException {
+		Say say = new Say.Builder(AgentGuardrails.CALL_LIMIT_CLOSING.trim())
+				.voice(sayVoice())
+				.build();
+		Hangup hangup = new Hangup.Builder().build();
+		VoiceResponse response = new VoiceResponse.Builder()
+				.say(say)
+				.hangup(hangup)
+				.build();
+		return response.toXml();
 	}
 
 	public String conversationTurnResponse(String reply) throws TwiMLException {
