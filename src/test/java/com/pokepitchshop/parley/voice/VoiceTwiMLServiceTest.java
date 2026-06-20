@@ -15,6 +15,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 
+import com.pokepitchshop.parley.transcript.TranscriptService;
+
 @ExtendWith(MockitoExtension.class)
 class VoiceTwiMLServiceTest {
 
@@ -29,6 +31,9 @@ class VoiceTwiMLServiceTest {
 	@Mock
 	private ChatClient.CallResponseSpec responseSpec;
 
+	@Mock
+	private TranscriptService transcriptService;
+
 	private VoiceTwiMLService service;
 
 	@BeforeEach
@@ -36,7 +41,7 @@ class VoiceTwiMLServiceTest {
 		VoiceProperties voiceProperties = new VoiceProperties();
 		voiceProperties.setSayVoice("POLLY_JOANNA_NEURAL");
 		voiceProperties.setSpeechTimeout(3);
-		service = new VoiceTwiMLService(chatClient, voiceProperties);
+		service = new VoiceTwiMLService(chatClient, voiceProperties, transcriptService);
 	}
 
 	@Test
@@ -62,18 +67,19 @@ class VoiceTwiMLServiceTest {
 		given(requestSpec.call()).willReturn(responseSpec);
 		given(responseSpec.content()).willReturn("We are open until six.");
 
-		String twiml = service.respond(CALL_SID, "What are your hours?");
+		String twiml = service.respond(CALL_SID, "+15551234567", "What are your hours?");
 
 		assertThat(twiml).contains("We are open until six.");
 		assertThat(twiml).contains("<Gather");
 		assertThat(twiml).contains("speechTimeout=\"3\"");
 		assertThat(twiml).contains("action=\"/voice/respond\"");
 		verify(requestSpec).advisors(any(Consumer.class));
+		verify(transcriptService).appendTurn(CALL_SID, "+15551234567", "What are your hours?", "We are open until six.");
 	}
 
 	@Test
 	void respondWithEmptySpeechRedirectsToVoice() throws Exception {
-		String twiml = service.respond(CALL_SID, "");
+		String twiml = service.respond(CALL_SID, "+15551234567", "");
 
 		assertThat(twiml).contains("<Redirect");
 		assertThat(twiml).contains("/voice");
@@ -82,7 +88,7 @@ class VoiceTwiMLServiceTest {
 
 	@Test
 	void respondWithNullSpeechRedirectsToVoice() throws Exception {
-		String twiml = service.respond(CALL_SID, null);
+		String twiml = service.respond(CALL_SID, "+15551234567", null);
 
 		assertThat(twiml).contains("<Redirect");
 		assertThat(twiml).contains("/voice");

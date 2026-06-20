@@ -4,6 +4,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.stereotype.Service;
 
+import com.pokepitchshop.parley.transcript.TranscriptService;
 import com.twilio.http.HttpMethod;
 import com.twilio.twiml.TwiMLException;
 import com.twilio.twiml.VoiceResponse;
@@ -26,9 +27,15 @@ public class VoiceTwiMLService {
 
 	private final VoiceProperties voiceProperties;
 
-	public VoiceTwiMLService(ChatClient chatClient, VoiceProperties voiceProperties) {
+	private final TranscriptService transcriptService;
+
+	public VoiceTwiMLService(
+			ChatClient chatClient,
+			VoiceProperties voiceProperties,
+			TranscriptService transcriptService) {
 		this.chatClient = chatClient;
 		this.voiceProperties = voiceProperties;
+		this.transcriptService = transcriptService;
 	}
 
 	public String openingResponse() throws TwiMLException {
@@ -42,7 +49,7 @@ public class VoiceTwiMLService {
 		return response.toXml();
 	}
 
-	public String respond(String callSid, String speechResult) throws TwiMLException {
+	public String respond(String callSid, String fromNumber, String speechResult) throws TwiMLException {
 		if (speechResult == null || speechResult.isBlank()) {
 			return redirectToOpening();
 		}
@@ -51,6 +58,7 @@ public class VoiceTwiMLService {
 				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
 				.call()
 				.content();
+		transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
 		return conversationTurnResponse(reply);
 	}
 
