@@ -33,11 +33,14 @@ class VoiceTwiMLServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new VoiceTwiMLService(chatClient);
+		VoiceProperties voiceProperties = new VoiceProperties();
+		voiceProperties.setSayVoice("POLLY_JOANNA_NEURAL");
+		voiceProperties.setSpeechTimeout(3);
+		service = new VoiceTwiMLService(chatClient, voiceProperties);
 	}
 
 	@Test
-	void openingResponseContainsSayGatherAndRespondAction() throws Exception {
+	void openingResponseContainsSayGatherSpeechTimeoutAndRespondAction() throws Exception {
 		String twiml = service.openingResponse();
 
 		assertThat(twiml).contains("<Response>");
@@ -46,6 +49,7 @@ class VoiceTwiMLServiceTest {
 		assertThat(twiml).contains(VoiceTwiMLService.OPENING_GREETING.trim());
 		assertThat(twiml).contains("<Gather");
 		assertThat(twiml).contains("input=\"speech\"");
+		assertThat(twiml).contains("speechTimeout=\"3\"");
 		assertThat(twiml).contains("action=\"/voice/respond\"");
 		assertThat(twiml).contains("method=\"POST\"");
 	}
@@ -62,6 +66,7 @@ class VoiceTwiMLServiceTest {
 
 		assertThat(twiml).contains("We are open until six.");
 		assertThat(twiml).contains("<Gather");
+		assertThat(twiml).contains("speechTimeout=\"3\"");
 		assertThat(twiml).contains("action=\"/voice/respond\"");
 		verify(requestSpec).advisors(any(Consumer.class));
 	}

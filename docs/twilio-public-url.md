@@ -121,4 +121,4 @@ For Azure Container Apps, use `terraform output app_url` from [`parley-infra/`](
 - [ ] ngrok tunnel running; `PUBLIC_BASE_URL` set in `.env`
 - [ ] `curl -X POST "$PUBLIC_BASE_URL/voice"` returns valid TwiML over HTTPS
 - [ ] Twilio number webhook → `{PUBLIC_BASE_URL}/voice` (POK-11) — run `./scripts/repoint-twilio-voice-webhook.sh` or use Console
-- [ ] Place a test call and hear the greeting (POK-12)
+- [ ] Place a test call and hear the greeting (POK-12) — see [e2e-test-call.md](e2e-test-call.md)

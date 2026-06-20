@@ -15,7 +15,7 @@ import com.twilio.twiml.voice.Say;
 public class VoiceTwiMLService {
 
 	static final String OPENING_GREETING = """
-			Hi, you're through to Poke Pitch Shop. How can I help you today?
+			Hi, you're through to Poke Pitch Shop. What can I help you with?
 			""";
 
 	static final String VOICE_PATH = "/voice";
@@ -24,13 +24,16 @@ public class VoiceTwiMLService {
 
 	private final ChatClient chatClient;
 
-	public VoiceTwiMLService(ChatClient chatClient) {
+	private final VoiceProperties voiceProperties;
+
+	public VoiceTwiMLService(ChatClient chatClient, VoiceProperties voiceProperties) {
 		this.chatClient = chatClient;
+		this.voiceProperties = voiceProperties;
 	}
 
 	public String openingResponse() throws TwiMLException {
 		Say greeting = new Say.Builder(OPENING_GREETING.trim())
-				.voice(Say.Voice.POLLY_JOANNA_NEURAL)
+				.voice(sayVoice())
 				.build();
 		VoiceResponse response = new VoiceResponse.Builder()
 				.say(greeting)
@@ -53,7 +56,7 @@ public class VoiceTwiMLService {
 
 	public String conversationTurnResponse(String reply) throws TwiMLException {
 		Say say = new Say.Builder(reply)
-				.voice(Say.Voice.POLLY_JOANNA_NEURAL)
+				.voice(sayVoice())
 				.build();
 		VoiceResponse response = new VoiceResponse.Builder()
 				.say(say)
@@ -77,7 +80,17 @@ public class VoiceTwiMLService {
 				.action(RESPOND_ACTION)
 				.method(HttpMethod.POST)
 				.inputs(Gather.Input.SPEECH)
+				.speechTimeout(String.valueOf(voiceProperties.getSpeechTimeout()))
 				.build();
+	}
+
+	private Say.Voice sayVoice() {
+		try {
+			return Say.Voice.valueOf(voiceProperties.getSayVoice());
+		}
+		catch (IllegalArgumentException ex) {
+			return Say.Voice.POLLY_JOANNA_NEURAL;
+		}
 	}
 
 }
