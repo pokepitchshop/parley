@@ -4,6 +4,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.stereotype.Service;
 
+import com.pokepitchshop.parley.caller.CallerContext;
+import com.pokepitchshop.parley.caller.CallerService;
 import com.pokepitchshop.parley.transcript.TranscriptService;
 import com.twilio.http.HttpMethod;
 import com.twilio.twiml.TwiMLException;
@@ -15,10 +17,6 @@ import com.twilio.twiml.voice.Say;
 @Service
 public class VoiceTwiMLService {
 
-	static final String OPENING_GREETING = """
-			Hi, you're through to Poke Pitch Shop. What can I help you with?
-			""";
-
 	static final String VOICE_PATH = "/voice";
 
 	static final String RESPOND_ACTION = "/voice/respond";
@@ -29,17 +27,22 @@ public class VoiceTwiMLService {
 
 	private final TranscriptService transcriptService;
 
+	private final CallerService callerService;
+
 	public VoiceTwiMLService(
 			ChatClient chatClient,
 			VoiceProperties voiceProperties,
-			TranscriptService transcriptService) {
+			TranscriptService transcriptService,
+			CallerService callerService) {
 		this.chatClient = chatClient;
 		this.voiceProperties = voiceProperties;
 		this.transcriptService = transcriptService;
+		this.callerService = callerService;
 	}
 
-	public String openingResponse() throws TwiMLException {
-		Say greeting = new Say.Builder(OPENING_GREETING.trim())
+	public String openingResponse(String fromNumber) throws TwiMLException {
+		String greetingText = callerService.contextFor(fromNumber).openingGreeting();
+		Say greeting = new Say.Builder(greetingText)
 				.voice(sayVoice())
 				.build();
 		VoiceResponse response = new VoiceResponse.Builder()
@@ -53,7 +56,9 @@ public class VoiceTwiMLService {
 		if (speechResult == null || speechResult.isBlank()) {
 			return redirectToOpening();
 		}
+		CallerContext callerContext = callerService.contextFor(fromNumber);
 		String reply = chatClient.prompt()
+				.system(callerContext.systemPromptSnippet())
 				.user(speechResult)
 				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
 				.call()
