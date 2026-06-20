@@ -58,17 +58,53 @@ curl -X POST \
   "$PUBLIC_BASE_URL/voice/respond"
 ```
 
-## Next: point Twilio at the webhook (POK-11)
+## Repoint Twilio from Retell to Parley (POK-11)
 
-In the [Twilio Console](https://console.twilio.com/) → Phone Numbers → your number → **Voice configuration**:
+Previously the number routed to Retell via SIP domain `jmacretella.sip.twilio.com`. Cut over to Parley's webhook so inbound calls hit `/voice`.
 
-| Field | Value |
-|-------|-------|
-| A call comes in | Webhook |
-| URL | `{PUBLIC_BASE_URL}/voice` |
-| HTTP method | `POST` |
+### Before you cut over
 
-Use the same ngrok HTTPS base URL Twilio will call in production-like tests.
+1. Parley is running and reachable at `PUBLIC_BASE_URL` (ngrok or hosted `app_url`).
+2. `.env` includes `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, and `PUBLIC_BASE_URL`.
+3. Smoke-test the webhook Twilio will call:
+
+   ```bash
+   curl -X POST -H "ngrok-skip-browser-warning: true" "$PUBLIC_BASE_URL/voice"
+   ```
+
+### Option A: script (recommended)
+
+```bash
+chmod +x scripts/repoint-twilio-voice-webhook.sh
+./scripts/repoint-twilio-voice-webhook.sh
+```
+
+The script sets **A call comes in → Webhook**, URL `{PUBLIC_BASE_URL}/voice`, method `POST`. Leave the SIP domain unused.
+
+### Option B: Twilio Console
+
+In the [Twilio Console](https://console.twilio.com/) → **Phone Numbers** → **Manage** → **Active numbers** → your number → **Voice configuration**:
+
+| Field | Before (Retell) | After (Parley) |
+|-------|-----------------|----------------|
+| A call comes in | SIP / Trunk (e.g. `jmacretella.sip.twilio.com`) | **Webhook** |
+| URL | *(SIP domain)* | `{PUBLIC_BASE_URL}/voice` |
+| HTTP method | — | **POST** |
+
+Save. Do not point the number back at the Retell SIP domain.
+
+### Verify cutover
+
+```bash
+# Confirm voice_url via API (requires .env)
+source .env
+curl -s -G "https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers.json" \
+  --data-urlencode "PhoneNumber=${TWILIO_FROM_NUMBER}" \
+  -u "${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}" \
+  | python3 -c "import json,sys; n=json.load(sys.stdin)['incoming_phone_numbers'][0]; print(n['voice_url'], n['voice_method'])"
+```
+
+Expect `{PUBLIC_BASE_URL}/voice` and `POST`. Place a test call (POK-12) and confirm you hear the Parley greeting, not Retell.
 
 ## Hosted path (later)
 
@@ -84,5 +120,5 @@ For Azure Container Apps, use `terraform output app_url` from [`parley-infra/`](
 - [ ] `./gradlew bootRun` and `/health` returns 200
 - [ ] ngrok tunnel running; `PUBLIC_BASE_URL` set in `.env`
 - [ ] `curl -X POST "$PUBLIC_BASE_URL/voice"` returns valid TwiML over HTTPS
-- [ ] Twilio number webhook → `{PUBLIC_BASE_URL}/voice` (POK-11)
+- [ ] Twilio number webhook → `{PUBLIC_BASE_URL}/voice` (POK-11) — run `./scripts/repoint-twilio-voice-webhook.sh` or use Console
 - [ ] Place a test call and hear the greeting (POK-12)
