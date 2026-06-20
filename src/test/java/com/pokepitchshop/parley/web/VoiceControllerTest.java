@@ -1,5 +1,7 @@
 package com.pokepitchshop.parley.web;
 
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,9 +34,42 @@ class VoiceControllerTest {
 				</Response>
 				""";
 
-		org.mockito.BDDMockito.given(voiceTwiMLService.openingResponse()).willReturn(twiml);
+		given(voiceTwiMLService.openingResponse()).willReturn(twiml);
 
 		mockMvc.perform(post("/voice"))
+				.andExpect(status().isOk())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
+				.andExpect(content().xml(twiml));
+	}
+
+	@Test
+	void respondReturnsConversationTwiml() throws Exception {
+		String twiml = """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<Response>
+				<Say voice="Polly.Joanna-Neural">We are open until six.</Say>
+				<Gather input="speech" action="/voice/respond" method="POST"/>
+				</Response>
+				""";
+
+		given(voiceTwiMLService.respond(eq("What are your hours?"))).willReturn(twiml);
+
+		mockMvc.perform(post("/voice/respond").param("SpeechResult", "What are your hours?"))
+				.andExpect(status().isOk())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
+				.andExpect(content().xml(twiml));
+	}
+
+	@Test
+	void respondWithNoSpeechRedirectsToVoice() throws Exception {
+		String twiml = """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<Response><Redirect method="POST">/voice</Redirect></Response>
+				""";
+
+		given(voiceTwiMLService.respond(eq(null))).willReturn(twiml);
+
+		mockMvc.perform(post("/voice/respond"))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
 				.andExpect(content().xml(twiml));
