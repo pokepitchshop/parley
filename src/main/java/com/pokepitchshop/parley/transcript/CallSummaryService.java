@@ -8,6 +8,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.pokepitchshop.parley.caller.CallerService;
+
 @Service
 public class CallSummaryService {
 
@@ -15,11 +17,15 @@ public class CallSummaryService {
 
 	private final ChatClient summaryChatClient;
 
+	private final CallerService callerService;
+
 	public CallSummaryService(
 			TranscriptService transcriptService,
-			@Qualifier("summaryChatClient") ChatClient summaryChatClient) {
+			@Qualifier("summaryChatClient") ChatClient summaryChatClient,
+			CallerService callerService) {
 		this.transcriptService = transcriptService;
 		this.summaryChatClient = summaryChatClient;
+		this.callerService = callerService;
 	}
 
 	@Async
@@ -37,9 +43,10 @@ public class CallSummaryService {
 				.call()
 				.content();
 		transcriptService.saveSummary(callSid, summary);
+		callerService.updateAfterCall(transcript, summary);
 	}
 
-	static String formatTranscript(Transcript transcript) {
+	public static String formatTranscript(Transcript transcript) {
 		return transcript.getTurns().stream()
 				.map(turn -> "Caller: " + turn.caller() + "\nAgent: " + turn.agent())
 				.collect(Collectors.joining("\n\n"));

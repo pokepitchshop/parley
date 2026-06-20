@@ -23,8 +23,8 @@ public class VoiceController {
 	}
 
 	@PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
-	String voice() throws TwiMLException {
-		return voiceTwiMLService.openingResponse();
+	String voice(@RequestParam(value = "From", required = false) String fromNumber) throws TwiMLException {
+		return voiceTwiMLService.openingResponse(fromNumber);
 	}
 
 	@PostMapping(value = "/voice/respond", produces = MediaType.APPLICATION_XML_VALUE)

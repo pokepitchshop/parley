@@ -38,7 +38,7 @@ class VoiceControllerTest {
 				</Response>
 				""";
 
-		given(voiceTwiMLService.openingResponse()).willReturn(twiml);
+		given(voiceTwiMLService.openingResponse(null)).willReturn(twiml);
 
 		mockMvc.perform(post("/voice"))
 				.andExpect(status().isOk())
