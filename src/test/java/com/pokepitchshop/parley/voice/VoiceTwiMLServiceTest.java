@@ -1,12 +1,34 @@
 package com.pokepitchshop.parley.voice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.chat.client.ChatClient;
 
+@ExtendWith(MockitoExtension.class)
 class VoiceTwiMLServiceTest {
 
-	private final VoiceTwiMLService service = new VoiceTwiMLService();
+	@Mock
+	private ChatClient chatClient;
+
+	@Mock
+	private ChatClient.ChatClientRequestSpec requestSpec;
+
+	@Mock
+	private ChatClient.CallResponseSpec responseSpec;
+
+	private VoiceTwiMLService service;
+
+	@BeforeEach
+	void setUp() {
+		service = new VoiceTwiMLService(chatClient);
+	}
 
 	@Test
 	void openingResponseContainsSayGatherAndRespondAction() throws Exception {
@@ -20,6 +42,37 @@ class VoiceTwiMLServiceTest {
 		assertThat(twiml).contains("input=\"speech\"");
 		assertThat(twiml).contains("action=\"/voice/respond\"");
 		assertThat(twiml).contains("method=\"POST\"");
+	}
+
+	@Test
+	void respondWithSpeechReturnsReplySayAndGather() throws Exception {
+		given(chatClient.prompt()).willReturn(requestSpec);
+		given(requestSpec.user(anyString())).willReturn(requestSpec);
+		given(requestSpec.call()).willReturn(responseSpec);
+		given(responseSpec.content()).willReturn("We are open until six.");
+
+		String twiml = service.respond("What are your hours?");
+
+		assertThat(twiml).contains("We are open until six.");
+		assertThat(twiml).contains("<Gather");
+		assertThat(twiml).contains("action=\"/voice/respond\"");
+	}
+
+	@Test
+	void respondWithEmptySpeechRedirectsToVoice() throws Exception {
+		String twiml = service.respond("");
+
+		assertThat(twiml).contains("<Redirect");
+		assertThat(twiml).contains("/voice");
+		assertThat(twiml).contains("method=\"POST\"");
+	}
+
+	@Test
+	void respondWithNullSpeechRedirectsToVoice() throws Exception {
+		String twiml = service.respond(null);
+
+		assertThat(twiml).contains("<Redirect");
+		assertThat(twiml).contains("/voice");
 	}
 
 }
