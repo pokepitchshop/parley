@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.pokepitchshop.parley.transcript.CallSummaryService;
 import com.pokepitchshop.parley.voice.VoiceTwiMLService;
 
 @WebMvcTest(VoiceController.class)
@@ -23,6 +24,9 @@ class VoiceControllerTest {
 
 	@MockitoBean
 	private VoiceTwiMLService voiceTwiMLService;
+
+	@MockitoBean
+	private CallSummaryService callSummaryService;
 
 	@Test
 	void voiceReturnsOpeningTwiml() throws Exception {
@@ -52,10 +56,11 @@ class VoiceControllerTest {
 				</Response>
 				""";
 
-		given(voiceTwiMLService.respond(eq("CA123"), eq("What are your hours?"))).willReturn(twiml);
+		given(voiceTwiMLService.respond(eq("CA123"), eq("+15551234567"), eq("What are your hours?"))).willReturn(twiml);
 
 		mockMvc.perform(post("/voice/respond")
 						.param("CallSid", "CA123")
+						.param("From", "+15551234567")
 						.param("SpeechResult", "What are your hours?"))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
@@ -69,12 +74,32 @@ class VoiceControllerTest {
 				<Response><Redirect method="POST">/voice</Redirect></Response>
 				""";
 
-		given(voiceTwiMLService.respond(null, null)).willReturn(twiml);
+		given(voiceTwiMLService.respond(null, null, null)).willReturn(twiml);
 
 		mockMvc.perform(post("/voice/respond"))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
 				.andExpect(content().xml(twiml));
+	}
+
+	@Test
+	void statusCompletedTriggersSummary() throws Exception {
+		mockMvc.perform(post("/voice/status")
+						.param("CallSid", "CA123")
+						.param("CallStatus", "completed"))
+				.andExpect(status().isOk());
+
+		org.mockito.Mockito.verify(callSummaryService).onCallCompleted("CA123");
+	}
+
+	@Test
+	void statusNonCompletedDoesNotTriggerSummary() throws Exception {
+		mockMvc.perform(post("/voice/status")
+						.param("CallSid", "CA123")
+						.param("CallStatus", "ringing"))
+				.andExpect(status().isOk());
+
+		org.mockito.Mockito.verify(callSummaryService, org.mockito.Mockito.never()).onCallCompleted("CA123");
 	}
 
 }

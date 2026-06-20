@@ -1,10 +1,12 @@
 package com.pokepitchshop.parley.web;
 
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.pokepitchshop.parley.transcript.CallSummaryService;
 import com.pokepitchshop.parley.voice.VoiceTwiMLService;
 import com.twilio.twiml.TwiMLException;
 
@@ -13,8 +15,11 @@ public class VoiceController {
 
 	private final VoiceTwiMLService voiceTwiMLService;
 
-	public VoiceController(VoiceTwiMLService voiceTwiMLService) {
+	private final CallSummaryService callSummaryService;
+
+	public VoiceController(VoiceTwiMLService voiceTwiMLService, CallSummaryService callSummaryService) {
 		this.voiceTwiMLService = voiceTwiMLService;
+		this.callSummaryService = callSummaryService;
 	}
 
 	@PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
@@ -25,9 +30,20 @@ public class VoiceController {
 	@PostMapping(value = "/voice/respond", produces = MediaType.APPLICATION_XML_VALUE)
 	String respond(
 			@RequestParam(value = "CallSid", required = false) String callSid,
+			@RequestParam(value = "From", required = false) String fromNumber,
 			@RequestParam(value = "SpeechResult", required = false) String speechResult)
 			throws TwiMLException {
-		return voiceTwiMLService.respond(callSid, speechResult);
+		return voiceTwiMLService.respond(callSid, fromNumber, speechResult);
+	}
+
+	@PostMapping("/voice/status")
+	ResponseEntity<Void> status(
+			@RequestParam(value = "CallSid", required = false) String callSid,
+			@RequestParam(value = "CallStatus", required = false) String callStatus) {
+		if (callSid != null && "completed".equalsIgnoreCase(callStatus)) {
+			callSummaryService.onCallCompleted(callSid);
+		}
+		return ResponseEntity.ok().build();
 	}
 
 }

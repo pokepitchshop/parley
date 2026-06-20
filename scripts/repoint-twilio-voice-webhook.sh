@@ -18,6 +18,7 @@ fi
 : "${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL (ngrok or hosted app_url, no trailing slash)}"
 
 VOICE_URL="${PUBLIC_BASE_URL%/}/voice"
+STATUS_URL="${PUBLIC_BASE_URL%/}/voice/status"
 API="https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers.json"
 
 echo "Looking up ${TWILIO_FROM_NUMBER}..."
@@ -40,13 +41,15 @@ print(n.get('voice_url') or '', n.get('trunk_sid') or '')
 
 echo "Current voice_url: ${CURRENT_URL:-<empty>}"
 echo "Current trunk_sid: ${CURRENT_TRUNK:-<empty>}"
-echo "Updating to: ${VOICE_URL} (POST), clearing trunk_sid"
+echo "Updating to: ${VOICE_URL} (POST), status ${STATUS_URL} (POST), clearing trunk_sid"
 
 UPDATE=$(curl -s -X POST \
 	"https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers/${PHONE_SID}.json" \
 	--data-urlencode "TrunkSid=" \
 	--data-urlencode "VoiceUrl=${VOICE_URL}" \
 	--data-urlencode "VoiceMethod=POST" \
+	--data-urlencode "StatusCallback=${STATUS_URL}" \
+	--data-urlencode "StatusCallbackMethod=POST" \
 	-u "${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}")
 
 read -r NEW_URL NEW_METHOD NEW_TRUNK <<<"$(python3 -c "
@@ -67,4 +70,4 @@ if [[ -n "$NEW_TRUNK" ]]; then
 	exit 1
 fi
 
-echo "Done. ${TWILIO_FROM_NUMBER} now webhooks to ${NEW_URL} (${NEW_METHOD}), trunk_sid cleared."
+echo "Done. ${TWILIO_FROM_NUMBER} now webhooks to ${NEW_URL} (${NEW_METHOD}), status ${STATUS_URL}, trunk_sid cleared."
