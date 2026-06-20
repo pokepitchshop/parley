@@ -1,6 +1,7 @@
 package com.pokepitchshop.parley.voice;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.stereotype.Service;
 
 import com.twilio.http.HttpMethod;
@@ -38,11 +39,15 @@ public class VoiceTwiMLService {
 		return response.toXml();
 	}
 
-	public String respond(String speechResult) throws TwiMLException {
+	public String respond(String callSid, String speechResult) throws TwiMLException {
 		if (speechResult == null || speechResult.isBlank()) {
 			return redirectToOpening();
 		}
-		String reply = chatClient.prompt().user(speechResult).call().content();
+		String reply = chatClient.prompt()
+				.user(speechResult)
+				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
+				.call()
+				.content();
 		return conversationTurnResponse(reply);
 	}
 
