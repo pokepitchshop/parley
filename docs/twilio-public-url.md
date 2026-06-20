@@ -79,7 +79,9 @@ chmod +x scripts/repoint-twilio-voice-webhook.sh
 ./scripts/repoint-twilio-voice-webhook.sh
 ```
 
-The script sets **A call comes in → Webhook**, URL `{PUBLIC_BASE_URL}/voice`, method `POST`. Leave the SIP domain unused.
+The script clears any **Elastic SIP Trunk** association (`TrunkSid`), then sets **A call comes in → Webhook**, URL `{PUBLIC_BASE_URL}/voice`, method `POST`.
+
+> **Important:** If the number still has a `trunk_sid` (e.g. Retell's `retellaTrunk`), Twilio **ignores** `voice_url` and routes calls to the trunk. Setting the webhook alone is not enough — the script must clear `trunk_sid`.
 
 ### Option B: Twilio Console
 
@@ -96,15 +98,28 @@ Save. Do not point the number back at the Retell SIP domain.
 ### Verify cutover
 
 ```bash
-# Confirm voice_url via API (requires .env)
+# Confirm voice_url and trunk_sid via API (requires .env)
 source .env
 curl -s -G "https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers.json" \
   --data-urlencode "PhoneNumber=${TWILIO_FROM_NUMBER}" \
   -u "${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}" \
-  | python3 -c "import json,sys; n=json.load(sys.stdin)['incoming_phone_numbers'][0]; print(n['voice_url'], n['voice_method'])"
+  | python3 -c "import json,sys; n=json.load(sys.stdin)['incoming_phone_numbers'][0]; print('voice_url:', n.get('voice_url')); print('voice_method:', n.get('voice_method')); print('trunk_sid:', n.get('trunk_sid') or '<empty>')"
 ```
 
-Expect `{PUBLIC_BASE_URL}/voice` and `POST`. Place a test call (POK-12) and confirm you hear the Parley greeting, not Retell.
+Expect `voice_url` → `{PUBLIC_BASE_URL}/voice`, `voice_method` → `POST`, and **`trunk_sid` empty**. Place a test call (POK-12) and confirm ngrok shows `POST /voice` from Twilio and you hear the Parley greeting, not Retell.
+
+### Preflight before a live call (POK-86)
+
+Run the automated checklist (health, ngrok URL match, Twilio config, `/voice` TwiML):
+
+```bash
+chmod +x scripts/verify-voice-preflight.sh
+./scripts/verify-voice-preflight.sh
+```
+
+If ngrok restarted and the subdomain changed, update `PUBLIC_BASE_URL` in `.env` and re-run `./scripts/repoint-twilio-voice-webhook.sh`.
+
+Then dial your Twilio number and watch the ngrok inspector at http://127.0.0.1:4040 for `POST /voice` and `POST /voice/respond`.
 
 ## Hosted path (later)
 
@@ -113,7 +128,7 @@ For Azure Container Apps, use `terraform output app_url` from [`parley-infra/`](
 ## Notes
 
 - **Signature validation (POK-13):** Twilio signs the *public* URL. Behind ngrok or a reverse proxy, validators must reconstruct the external `https://` URL, not `http://localhost:8080`.
-- **Retire Retell (POK-11):** SIP domain `jmacretella.sip.twilio.com` is unused once the number webhook points at Parley.
+- **Retire Retell (POK-11 / POK-81):** Remove the number from `retellaTrunk` (or clear `trunk_sid`) so inbound calls use the webhook, not `sip.retellai.com`.
 
 ## E2E checklist (First Call)
 
@@ -121,4 +136,5 @@ For Azure Container Apps, use `terraform output app_url` from [`parley-infra/`](
 - [ ] ngrok tunnel running; `PUBLIC_BASE_URL` set in `.env`
 - [ ] `curl -X POST "$PUBLIC_BASE_URL/voice"` returns valid TwiML over HTTPS
 - [ ] Twilio number webhook → `{PUBLIC_BASE_URL}/voice` (POK-11) — run `./scripts/repoint-twilio-voice-webhook.sh` or use Console
+- [ ] Run `./scripts/verify-voice-preflight.sh` (POK-86)
 - [ ] Place a test call and hear the greeting (POK-12) — see [e2e-test-call.md](e2e-test-call.md)

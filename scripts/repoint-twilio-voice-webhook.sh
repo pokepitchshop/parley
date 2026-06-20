@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Repoint a Twilio phone number from Retell (SIP) to Parley POST /voice.
+# Repoint a Twilio phone number from Retell (SIP trunk) to Parley POST /voice.
+# Clears trunk_sid — Twilio ignores voice_url while a trunk is attached.
 # Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, PUBLIC_BASE_URL
 set -euo pipefail
 
@@ -31,18 +32,28 @@ if [[ -z "$PHONE_SID" ]]; then
 	exit 1
 fi
 
-CURRENT_URL=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d['incoming_phone_numbers'][0].get('voice_url') or '')" <<<"$LOOKUP")
+read -r CURRENT_URL CURRENT_TRUNK <<<"$(python3 -c "
+import json, sys
+n = json.load(sys.stdin)['incoming_phone_numbers'][0]
+print(n.get('voice_url') or '', n.get('trunk_sid') or '')
+" <<<"$LOOKUP")"
+
 echo "Current voice_url: ${CURRENT_URL:-<empty>}"
-echo "Updating to: ${VOICE_URL} (POST)"
+echo "Current trunk_sid: ${CURRENT_TRUNK:-<empty>}"
+echo "Updating to: ${VOICE_URL} (POST), clearing trunk_sid"
 
 UPDATE=$(curl -s -X POST \
 	"https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers/${PHONE_SID}.json" \
+	--data-urlencode "TrunkSid=" \
 	--data-urlencode "VoiceUrl=${VOICE_URL}" \
 	--data-urlencode "VoiceMethod=POST" \
 	-u "${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}")
 
-NEW_URL=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('voice_url',''))" <<<"$UPDATE")
-NEW_METHOD=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('voice_method',''))" <<<"$UPDATE")
+read -r NEW_URL NEW_METHOD NEW_TRUNK <<<"$(python3 -c "
+import json, sys
+n = json.load(sys.stdin)
+print(n.get('voice_url', ''), n.get('voice_method', ''), n.get('trunk_sid') or '')
+" <<<"$UPDATE")"
 
 if [[ "$NEW_URL" != "$VOICE_URL" ]] || [[ "$NEW_METHOD" != "POST" ]]; then
 	echo "Update failed:" >&2
@@ -50,5 +61,10 @@ if [[ "$NEW_URL" != "$VOICE_URL" ]] || [[ "$NEW_METHOD" != "POST" ]]; then
 	exit 1
 fi
 
-echo "Done. ${TWILIO_FROM_NUMBER} now webhooks to ${NEW_URL} (${NEW_METHOD})."
-echo "SIP domain jmacretella.sip.twilio.com is no longer used for this number."
+if [[ -n "$NEW_TRUNK" ]]; then
+	echo "trunk_sid still set (${NEW_TRUNK}); voice_url is ignored by Twilio while a trunk is attached." >&2
+	echo "$UPDATE" >&2
+	exit 1
+fi
+
+echo "Done. ${TWILIO_FROM_NUMBER} now webhooks to ${NEW_URL} (${NEW_METHOD}), trunk_sid cleared."
