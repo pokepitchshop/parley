@@ -1,8 +1,12 @@
 package com.pokepitchshop.parley.voice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +17,8 @@ import org.springframework.ai.chat.client.ChatClient;
 
 @ExtendWith(MockitoExtension.class)
 class VoiceTwiMLServiceTest {
+
+	private static final String CALL_SID = "CA1234567890abcdef";
 
 	@Mock
 	private ChatClient chatClient;
@@ -27,11 +33,14 @@ class VoiceTwiMLServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new VoiceTwiMLService(chatClient);
+		VoiceProperties voiceProperties = new VoiceProperties();
+		voiceProperties.setSayVoice("POLLY_JOANNA_NEURAL");
+		voiceProperties.setSpeechTimeout(3);
+		service = new VoiceTwiMLService(chatClient, voiceProperties);
 	}
 
 	@Test
-	void openingResponseContainsSayGatherAndRespondAction() throws Exception {
+	void openingResponseContainsSayGatherSpeechTimeoutAndRespondAction() throws Exception {
 		String twiml = service.openingResponse();
 
 		assertThat(twiml).contains("<Response>");
@@ -40,6 +49,7 @@ class VoiceTwiMLServiceTest {
 		assertThat(twiml).contains(VoiceTwiMLService.OPENING_GREETING.trim());
 		assertThat(twiml).contains("<Gather");
 		assertThat(twiml).contains("input=\"speech\"");
+		assertThat(twiml).contains("speechTimeout=\"3\"");
 		assertThat(twiml).contains("action=\"/voice/respond\"");
 		assertThat(twiml).contains("method=\"POST\"");
 	}
@@ -48,19 +58,22 @@ class VoiceTwiMLServiceTest {
 	void respondWithSpeechReturnsReplySayAndGather() throws Exception {
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
+		given(requestSpec.advisors(any(Consumer.class))).willReturn(requestSpec);
 		given(requestSpec.call()).willReturn(responseSpec);
 		given(responseSpec.content()).willReturn("We are open until six.");
 
-		String twiml = service.respond("What are your hours?");
+		String twiml = service.respond(CALL_SID, "What are your hours?");
 
 		assertThat(twiml).contains("We are open until six.");
 		assertThat(twiml).contains("<Gather");
+		assertThat(twiml).contains("speechTimeout=\"3\"");
 		assertThat(twiml).contains("action=\"/voice/respond\"");
+		verify(requestSpec).advisors(any(Consumer.class));
 	}
 
 	@Test
 	void respondWithEmptySpeechRedirectsToVoice() throws Exception {
-		String twiml = service.respond("");
+		String twiml = service.respond(CALL_SID, "");
 
 		assertThat(twiml).contains("<Redirect");
 		assertThat(twiml).contains("/voice");
@@ -69,7 +82,7 @@ class VoiceTwiMLServiceTest {
 
 	@Test
 	void respondWithNullSpeechRedirectsToVoice() throws Exception {
-		String twiml = service.respond(null);
+		String twiml = service.respond(CALL_SID, null);
 
 		assertThat(twiml).contains("<Redirect");
 		assertThat(twiml).contains("/voice");
