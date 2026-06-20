@@ -35,6 +35,9 @@ class CallSummaryServiceTest {
 	private com.pokepitchshop.parley.caller.CallerService callerService;
 
 	@Mock
+	private com.pokepitchshop.parley.guardrails.CallLimitService callLimitService;
+
+	@Mock
 	private ChatClient.ChatClientRequestSpec requestSpec;
 
 	@Mock
@@ -44,7 +47,7 @@ class CallSummaryServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		callSummaryService = new CallSummaryService(transcriptService, summaryChatClient, callerService);
+		callSummaryService = new CallSummaryService(transcriptService, summaryChatClient, callerService, callLimitService);
 	}
 
 	@Test
@@ -68,6 +71,7 @@ class CallSummaryServiceTest {
 				.contains("Agent: We are open until six.");
 		verify(transcriptService).saveSummary(CALL_SID, "Caller asked about hours. Agent confirmed open until six.");
 		verify(callerService).updateAfterCall(transcript, "Caller asked about hours. Agent confirmed open until six.");
+		verify(callLimitService).clearCall(CALL_SID);
 	}
 
 	@Test
@@ -83,6 +87,7 @@ class CallSummaryServiceTest {
 		verify(transcriptService).markCompleted(CALL_SID);
 		verify(summaryChatClient, never()).prompt();
 		verify(transcriptService, never()).saveSummary(eq(CALL_SID), any());
+		verify(callLimitService).clearCall(CALL_SID);
 	}
 
 	@Test

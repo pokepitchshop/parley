@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.function.Consumer;
@@ -17,6 +18,11 @@ import org.springframework.ai.chat.client.ChatClient;
 
 import com.pokepitchshop.parley.caller.CallerContext;
 import com.pokepitchshop.parley.caller.CallerService;
+import com.pokepitchshop.parley.guardrails.AgentGuardrails;
+import com.pokepitchshop.parley.guardrails.CallLimitService;
+import com.pokepitchshop.parley.guardrails.OutOfScopeDetector;
+import com.pokepitchshop.parley.guardrails.ToolCallGuardrail;
+import com.pokepitchshop.parley.guardrails.ToolTurnDetector;
 import com.pokepitchshop.parley.transcript.TranscriptService;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +45,18 @@ class VoiceTwiMLServiceTest {
 	@Mock
 	private CallerService callerService;
 
+	@Mock
+	private CallLimitService callLimitService;
+
+	@Mock
+	private OutOfScopeDetector outOfScopeDetector;
+
+	@Mock
+	private ToolTurnDetector toolTurnDetector;
+
+	@Mock
+	private ToolCallGuardrail toolCallGuardrail;
+
 	private VoiceTwiMLService service;
 
 	@BeforeEach
@@ -46,7 +64,15 @@ class VoiceTwiMLServiceTest {
 		VoiceProperties voiceProperties = new VoiceProperties();
 		voiceProperties.setSayVoice("POLLY_JOANNA_NEURAL");
 		voiceProperties.setSpeechTimeout(3);
-		service = new VoiceTwiMLService(chatClient, voiceProperties, transcriptService, callerService);
+		service = new VoiceTwiMLService(
+				chatClient,
+				voiceProperties,
+				transcriptService,
+				callerService,
+				callLimitService,
+				outOfScopeDetector,
+				toolTurnDetector,
+				toolCallGuardrail);
 	}
 
 	@Test
@@ -79,6 +105,9 @@ class VoiceTwiMLServiceTest {
 	@Test
 	void respondWithSpeechReturnsReplySayAndGather() throws Exception {
 		CallerContext context = CallerContext.anonymous();
+		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
+		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(java.util.Optional.empty());
+		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
 		given(callerService.contextFor("+15551234567")).willReturn(context);
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
@@ -96,6 +125,33 @@ class VoiceTwiMLServiceTest {
 		verify(requestSpec).system(context.systemPromptSnippet());
 		verify(requestSpec).advisors(any(Consumer.class));
 		verify(transcriptService).appendTurn(CALL_SID, "+15551234567", "What are your hours?", "We are open until six.");
+	}
+
+	@Test
+	void respondWithOffTopicSpeechReturnsCannedDeclineWithoutLlm() throws Exception {
+		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
+		given(outOfScopeDetector.cannedDecline("What's the weather?"))
+				.willReturn(java.util.Optional.of(AgentGuardrails.OFF_TOPIC_DECLINE.trim()));
+
+		String twiml = service.respond(CALL_SID, "+15551234567", "What's the weather?");
+
+		assertThat(twiml).contains("I can't help with that");
+		assertThat(twiml).contains("<Gather");
+		verify(chatClient, never()).prompt();
+		verify(transcriptService).appendTurn(
+				CALL_SID, "+15551234567", "What's the weather?", AgentGuardrails.OFF_TOPIC_DECLINE.trim());
+	}
+
+	@Test
+	void respondWhenTurnLimitReachedReturnsHangup() throws Exception {
+		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(true);
+
+		String twiml = service.respond(CALL_SID, "+15551234567", "One more question");
+
+		assertThat(twiml).contains("wrap up");
+		assertThat(twiml).contains("<Hangup");
+		verify(chatClient, never()).prompt();
+		verify(transcriptService, never()).appendTurn(anyString(), anyString(), anyString(), anyString());
 	}
 
 	@Test

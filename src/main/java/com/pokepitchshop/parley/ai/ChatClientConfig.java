@@ -9,15 +9,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.pokepitchshop.parley.guardrails.AgentGuardrails;
+
 @Configuration
 public class ChatClientConfig {
 
-	private static final String SYSTEM_PROMPT = """
-			You are Parley, the phone assistant for Poke Pitch Shop. \
-			Answer in one or two short, conversational sentences, like you are on a live call. \
-			Use what the caller said earlier in this same call when they refer back to it. \
-			Never use markdown, lists, or URLs.
-			""";
+	private static final String SYSTEM_PROMPT = AgentGuardrails.VOICE_SYSTEM_PROMPT;
 
 	static final String SUMMARY_SYSTEM_PROMPT = """
 			You summarize completed phone calls for Poke Pitch Shop operators. \

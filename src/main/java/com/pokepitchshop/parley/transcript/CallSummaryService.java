@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.pokepitchshop.parley.caller.CallerService;
+import com.pokepitchshop.parley.guardrails.CallLimitService;
 
 @Service
 public class CallSummaryService {
@@ -19,13 +20,17 @@ public class CallSummaryService {
 
 	private final CallerService callerService;
 
+	private final CallLimitService callLimitService;
+
 	public CallSummaryService(
 			TranscriptService transcriptService,
 			@Qualifier("summaryChatClient") ChatClient summaryChatClient,
-			CallerService callerService) {
+			CallerService callerService,
+			CallLimitService callLimitService) {
 		this.transcriptService = transcriptService;
 		this.summaryChatClient = summaryChatClient;
 		this.callerService = callerService;
+		this.callLimitService = callLimitService;
 	}
 
 	@Async
@@ -33,17 +38,22 @@ public class CallSummaryService {
 		if (!StringUtils.hasText(callSid)) {
 			return;
 		}
-		transcriptService.markCompleted(callSid);
-		var transcript = transcriptService.findByCallSid(callSid).orElse(null);
-		if (transcript == null || transcript.getTurns().isEmpty() || StringUtils.hasText(transcript.getSummary())) {
-			return;
+		try {
+			transcriptService.markCompleted(callSid);
+			var transcript = transcriptService.findByCallSid(callSid).orElse(null);
+			if (transcript == null || transcript.getTurns().isEmpty() || StringUtils.hasText(transcript.getSummary())) {
+				return;
+			}
+			String summary = summaryChatClient.prompt()
+					.user(formatTranscript(transcript))
+					.call()
+					.content();
+			transcriptService.saveSummary(callSid, summary);
+			callerService.updateAfterCall(transcript, summary);
 		}
-		String summary = summaryChatClient.prompt()
-				.user(formatTranscript(transcript))
-				.call()
-				.content();
-		transcriptService.saveSummary(callSid, summary);
-		callerService.updateAfterCall(transcript, summary);
+		finally {
+			callLimitService.clearCall(callSid);
+		}
 	}
 
 	public static String formatTranscript(Transcript transcript) {
