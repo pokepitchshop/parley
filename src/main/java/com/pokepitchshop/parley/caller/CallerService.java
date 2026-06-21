@@ -4,12 +4,16 @@ import java.time.Instant;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.pokepitchshop.parley.transcript.CallSummaryService;
 import com.pokepitchshop.parley.transcript.Transcript;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class CallerService {
 
@@ -31,9 +35,22 @@ public class CallerService {
 		if (!StringUtils.hasText(phoneNumber)) {
 			return CallerContext.anonymous();
 		}
-		return callerRepository.findById(phoneNumber.trim())
-				.map(caller -> new CallerContext(caller.getDisplayName(), caller.getLastSummary()))
-				.orElse(CallerContext.anonymous());
+		String normalized = phoneNumber.trim();
+		try {
+			return callerRepository.findById(normalized)
+					.map(caller -> {
+						log.debug("Returning caller context for {} (returning={})", normalized, true);
+						return new CallerContext(caller.getDisplayName(), caller.getLastSummary());
+					})
+					.orElseGet(() -> {
+						log.debug("No caller record for {}; using anonymous context", normalized);
+						return CallerContext.anonymous();
+					});
+		}
+		catch (DataAccessException ex) {
+			log.warn("Caller lookup failed for {}; using anonymous context", normalized, ex);
+			return CallerContext.anonymous();
+		}
 	}
 
 	public void updateAfterCall(Transcript transcript, String summary) {

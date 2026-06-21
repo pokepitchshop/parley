@@ -103,6 +103,25 @@ class VoiceTwiMLServiceTest {
 	}
 
 	@Test
+	void respondWhenLlmFailsReturnsSpokenFallback() throws Exception {
+		CallerContext context = CallerContext.anonymous();
+		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
+		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(java.util.Optional.empty());
+		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
+		given(callerService.contextFor("+15551234567")).willReturn(context);
+		given(chatClient.prompt()).willReturn(requestSpec);
+		given(requestSpec.system(anyString())).willReturn(requestSpec);
+		given(requestSpec.user(anyString())).willReturn(requestSpec);
+		given(requestSpec.advisors(any(Consumer.class))).willThrow(new RuntimeException("404 deployment not found"));
+
+		String twiml = service.respond(CALL_SID, "+15551234567", "What are your hours?");
+
+		assertThat(twiml).contains("having trouble thinking");
+		assertThat(twiml).contains("<Gather");
+		verify(transcriptService, never()).appendTurn(anyString(), anyString(), anyString(), anyString());
+	}
+
+	@Test
 	void respondWithSpeechReturnsReplySayAndGather() throws Exception {
 		CallerContext context = CallerContext.anonymous();
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);

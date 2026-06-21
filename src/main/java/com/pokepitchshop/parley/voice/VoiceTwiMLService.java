@@ -2,6 +2,7 @@ package com.pokepitchshop.parley.voice;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 import com.pokepitchshop.parley.caller.CallerContext;
@@ -20,6 +21,9 @@ import com.twilio.twiml.voice.Hangup;
 import com.twilio.twiml.voice.Redirect;
 import com.twilio.twiml.voice.Say;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class VoiceTwiMLService {
 
@@ -93,18 +97,28 @@ public class VoiceTwiMLService {
 			return conversationTurnResponse(reply);
 		}
 		CallerContext callerContext = callerService.contextFor(fromNumber);
-		var prompt = chatClient.prompt()
-				.system(callerContext.systemPromptSnippet());
-		if (toolTurnDetector.looksLikeToolAction(speechResult)) {
-			prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
+		try {
+			var prompt = chatClient.prompt()
+					.system(callerContext.systemPromptSnippet());
+			if (toolTurnDetector.looksLikeToolAction(speechResult)) {
+				prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
+			}
+			String reply = prompt
+					.user(speechResult)
+					.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
+					.call()
+					.content();
+			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
+			return conversationTurnResponse(reply);
 		}
-		String reply = prompt
-				.user(speechResult)
-				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
-				.call()
-				.content();
-		transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
-		return conversationTurnResponse(reply);
+		catch (DataAccessException ex) {
+			log.error("Transcript save failed for CallSid={}", callSid, ex);
+			return conversationTurnResponse(AgentGuardrails.LLM_UNAVAILABLE.trim());
+		}
+		catch (RuntimeException ex) {
+			log.error("LLM turn failed for CallSid={}", callSid, ex);
+			return conversationTurnResponse(AgentGuardrails.LLM_UNAVAILABLE.trim());
+		}
 	}
 
 	public String callLimitClosingResponse() throws TwiMLException {

@@ -24,7 +24,7 @@ implementation 'com.azure:azure-identity'  // DefaultAzureCredential for keyless
 
 | Profile | Config | Properties |
 |---|---|---|
-| `local` | `application-local.properties` | `base-url`, `microsoft-foundry=true`, `api-key`, `chat.microsoft-deployment-name` |
+| `local` | `application-local.properties` | `base-url`, `microsoft-foundry=true`, `api-key`, `chat.model`, `chat.microsoft-deployment-name` |
 | `azure` | `application-azure.properties` | same endpoint/deployment — **no api-key** (managed identity) |
 
 Container Apps set `SPRING_PROFILES_ACTIVE=azure`, `AZURE_CLIENT_ID`, and `SPRING_AI_OPENAI_*` env vars. See `parley-infra/app/main.tf`.

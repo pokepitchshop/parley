@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.ai.chat.client.ChatClient;
 
 import com.pokepitchshop.parley.transcript.Transcript;
@@ -48,6 +49,16 @@ class CallerServiceTest {
 	@Test
 	void contextForUnknownNumberReturnsAnonymous() {
 		given(callerRepository.findById(PHONE)).willReturn(Optional.empty());
+
+		CallerContext context = callerService.contextFor(PHONE);
+
+		assertThat(context.isReturning()).isFalse();
+		assertThat(context.openingGreeting()).isEqualTo(CallerContext.DEFAULT_OPENING.trim());
+	}
+
+	@Test
+	void contextForMongoFailureReturnsAnonymous() {
+		given(callerRepository.findById(PHONE)).willThrow(new DataAccessResourceFailureException("connection refused"));
 
 		CallerContext context = callerService.contextFor(PHONE);
 
