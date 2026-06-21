@@ -89,10 +89,10 @@ fi
 
 echo ""
 echo "=== LLM (turn loop) ==="
-if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-	pass "OPENAI_API_KEY set (required for /voice/respond turns)"
+if [[ -n "${AZURE_OPENAI_API_KEY:-}" && -n "${SPRING_AI_OPENAI_BASE_URL:-}" ]]; then
+	pass "Azure OpenAI env set (AZURE_OPENAI_API_KEY + SPRING_AI_OPENAI_BASE_URL)"
 else
-	fail "OPENAI_API_KEY not set — greeting works but spoken replies will 500 on /voice/respond"
+	fail "Set AZURE_OPENAI_API_KEY and SPRING_AI_OPENAI_BASE_URL in .env — /voice/respond will 401"
 fi
 
 echo ""

@@ -159,8 +159,8 @@ See [llm-provider.md](llm-provider.md) for the full decision (POK-110).
 
 | Profile | Where | LLM |
 |---|---|---|
-| `local` | `./gradlew bootRun` + `.env` | OpenAI.com direct (`OPENAI_API_KEY` — `sk-…` from platform.openai.com) |
-| `azure` | Container Apps (`SPRING_PROFILES_ACTIVE=azure`) | Azure OpenAI (Microsoft Foundry) — keyless managed identity on the OpenAI starter |
+| `local` | `./gradlew bootRun` + `.env` | Azure OpenAI — KEY 1 + endpoint in `.env` |
+| `azure` | Container Apps (`SPRING_PROFILES_ACTIVE=azure`) | Azure OpenAI — keyless managed identity |
 
 ## Troubleshooting
 

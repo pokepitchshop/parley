@@ -20,7 +20,7 @@ Twilio voice webhooks must hit a **public HTTPS URL**. For local development, tu
 1. Parley running on port 8080:
 
    ```bash
-   cp .env.example .env   # fill OPENAI_API_KEY, TWILIO_* as needed
+   cp .env.example .env   # fill AZURE_OPENAI_API_KEY, TWILIO_* as needed
    ./gradlew bootRun
    curl http://localhost:8080/health   # expect {"status":"ok"}
    ```
@@ -62,7 +62,7 @@ curl -X POST \
 
 Expect HTTP 200 and TwiML XML containing `<Response>`, `<Say>`, and `<Gather input="speech">`.
 
-You can also probe the respond handler (requires `OPENAI_API_KEY` for a real LLM reply):
+You can also probe the respond handler (requires `AZURE_OPENAI_API_KEY` for a real LLM reply):
 
 ```bash
 curl -X POST \
