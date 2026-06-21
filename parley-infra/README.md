@@ -93,13 +93,17 @@ Then bump `var.image_tag` (or re-apply `app`) to roll a new revision.
 
 ## Spring AI
 
-Decision and key sources: [`docs/llm-provider.md`](../docs/llm-provider.md) (POK-110).
+Decision and auth: [`docs/llm-provider.md`](../docs/llm-provider.md) (POK-110).
 
-Spring AI 2.0 uses the **OpenAI starter** for both local dev and Azure-hosted models. Locally,
-set `OPENAI_API_KEY` (platform.openai.com `sk-…`); on Container Apps the `azure` profile points the same client at Azure OpenAI
-via `SPRING_AI_AZURE_OPENAI_*` env vars (relaxed binding → `spring.ai.openai.*` in
-`application-azure.properties`). Key Vault `openai-key` holds the **Azure Cognitive Services** key, not an OpenAI.com key.
-Keyless via managed identity is the better end state (RBAC already granted).
+Single OpenAI starter; `azure` profile enables Microsoft Foundry mode:
+
+```gradle
+implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+implementation 'com.azure:azure-identity'
+```
+
+- **`local`:** standard OpenAI.com (`OPENAI_API_KEY`)
+- **`azure`:** Microsoft Foundry mode on the same starter (`microsoft-foundry=true`, keyless via managed identity)
 
 ## Notes / TODO
 - Region defaults to `eastus2` (Azure OpenAI availability). Confirm model + version in your region.

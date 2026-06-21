@@ -62,7 +62,6 @@ Set on the **`parley-app`** workspace:
 | Variable | Description |
 |---|---|
 | `twilio_account_sid` | Twilio Account SID (sensitive) |
-| `openai_key_secret_id` | Key Vault versionless URI for **Azure OpenAI** Key 1 (`openai-key` secret — see [llm-provider.md](llm-provider.md)) |
 | `twilio_token_secret_id` | Key Vault versionless URI for Twilio auth token |
 | `mongodb_uri_secret_id` | Key Vault versionless URI for MongoDB connection string |
 
@@ -74,14 +73,21 @@ KV_URI=$(terraform output -raw key_vault_uri)
 KV_NAME="${KV_URI#https://}"
 KV_NAME="${KV_NAME%%.vault.azure.net/}"
 
-az keyvault secret set --vault-name "$KV_NAME" --name openai-key --value "<azure-openai-key-from-cognitive-services>"
+./scripts/seed-parley-keyvault.sh
+```
+
+Or manually:
+
+```bash
 az keyvault secret set --vault-name "$KV_NAME" --name twilio-auth-token --value "<twilio-auth-token>"
 az keyvault secret set --vault-name "$KV_NAME" --name mongodb-uri --value "<mongodb-connection-string>"
 ```
 
 Use the versionless secret IDs Terraform expects, e.g.:
 
-`https://parley-dev-kv.vault.azure.net/secrets/openai-key`
+`https://parley-dev-kv.vault.azure.net/secrets/twilio-auth-token`
+
+Azure OpenAI uses **keyless** managed-identity auth — no `openai-key` secret or HCP variable.
 
 ## 3. Apply Terraform (foundation → platform → app)
 
@@ -154,7 +160,7 @@ See [llm-provider.md](llm-provider.md) for the full decision (POK-110).
 | Profile | Where | LLM |
 |---|---|---|
 | `local` | `./gradlew bootRun` + `.env` | OpenAI.com direct (`OPENAI_API_KEY` — `sk-…` from platform.openai.com) |
-| `azure` | Container Apps (`SPRING_PROFILES_ACTIVE=azure`) | Azure OpenAI — same OpenAI starter, `base-url` + deployment from env; key from Key Vault `openai-key` |
+| `azure` | Container Apps (`SPRING_PROFILES_ACTIVE=azure`) | Azure OpenAI (Microsoft Foundry) — keyless managed identity on the OpenAI starter |
 
 ## Troubleshooting
 
@@ -162,5 +168,5 @@ See [llm-provider.md](llm-provider.md) for the full decision (POK-110).
 |---|---|
 | Container App won't start | `az containerapp logs show` — missing Key Vault secret or bad Mongo URI |
 | `/voice` 502/504 on first call | Cold start; wait and retry, or set `min_replicas = 1` |
-| LLM errors in Azure | Key Vault `openai-key` (Azure Cognitive Services key, not OpenAI.com), deployment `gpt-4.1-mini`, managed identity OpenAI role |
+| LLM errors in Azure | Managed identity **Cognitive Services OpenAI User** role, `AZURE_CLIENT_ID` set, deployment `gpt-4.1-mini` — see [llm-provider.md](llm-provider.md) |
 | Transcripts not saving | Key Vault `mongodb-uri` secret and network access from Container Apps egress |

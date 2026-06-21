@@ -43,11 +43,6 @@ variable "twilio_account_sid" {
   sensitive   = true
 }
 
-variable "openai_key_secret_id" {
-  type        = string
-  description = "Key Vault secret ID (versionless URI) holding the Azure OpenAI API key."
-}
-
 variable "twilio_token_secret_id" {
   type        = string
   description = "Key Vault secret ID (versionless URI) holding the Twilio auth token."

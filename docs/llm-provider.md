@@ -4,42 +4,40 @@ Parley uses a **profile split**: different LLM backends for local dev vs Azure p
 
 ## Decision
 
-| Environment | Profile | Provider | Key source |
+| Environment | Profile | Provider | Auth |
 |---|---|---|---|
 | Local (`./gradlew bootRun`) | `local` (default) | [OpenAI.com](https://platform.openai.com) | `OPENAI_API_KEY` in `.env` — an `sk-…` key from platform.openai.com |
-| Azure Container Apps | `azure` | Azure OpenAI (Cognitive Services) | Key Vault secret `openai-key` — **Key 1** from the `parley-*-openai` resource (seeded by `./scripts/seed-parley-keyvault.sh`) |
+| Azure Container Apps | `azure` | Azure OpenAI (Microsoft Foundry) | **Keyless** — user-assigned managed identity + `Cognitive Services OpenAI User` RBAC |
 
 **Why not one provider everywhere?**
 
 - **Local:** OpenAI.com is simplest for ngrok dev — one `sk-…` key, no Azure dependency on the hot path.
-- **Prod:** Azure OpenAI keeps inference in-region (`eastus2`), aligns with `parley-infra` platform layer, and supports keyless auth via managed identity (RBAC already granted; key in KV is the interim path).
+- **Prod:** Azure OpenAI keeps inference in-region (`eastus2`), aligns with `parley-infra` platform layer, and uses Entra token auth (no API key in Key Vault or env).
 
-**Why not drop Azure OpenAI from infra?** Container Apps already run on Azure; provisioning Azure OpenAI avoids shipping a platform.openai.com key into prod Key Vault and matches data-residency expectations as Parley scales.
+## Spring AI wiring (2.0)
 
-## Spring AI wiring
-
-Single starter for both profiles (Spring AI 2.0 pattern):
+Spring AI **2.0 removed** `spring-ai-starter-model-azure-openai`. Azure OpenAI uses the **same** OpenAI starter with **Microsoft Foundry** properties:
 
 ```gradle
 implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+implementation 'com.azure:azure-identity'  // DefaultAzureCredential for keyless on Azure
 ```
 
 | Profile | Config file | Properties |
 |---|---|---|
-| `local` | `application-local.properties` | `spring.ai.openai.api-key=${OPENAI_API_KEY}` → api.openai.com |
-| `azure` | `application-azure.properties` | `base-url` + `deployment-name` + API key from env → Azure OpenAI endpoint |
+| `local` | `application-local.properties` | `spring.ai.openai.api-key` + `chat.model` → api.openai.com |
+| `azure` | `application-azure.properties` | `spring.ai.openai.base-url` + `microsoft-foundry=true` + `chat.microsoft-deployment-name` — **no api-key** |
 
-Container Apps set `SPRING_PROFILES_ACTIVE=azure` and inject `SPRING_AI_AZURE_OPENAI_*` (relaxed binding → `spring.ai.openai.*` in the azure profile file). See `parley-infra/app/main.tf`.
+Container Apps set `SPRING_PROFILES_ACTIVE=azure`, `AZURE_CLIENT_ID` (user-assigned identity), and relaxed-binding env vars matching the properties above. See `parley-infra/app/main.tf`.
 
-## Key Vault: `openai-key` is **not** an OpenAI.com key
+## Key Vault secrets (app layer)
 
 After platform apply, `./scripts/seed-parley-keyvault.sh` stores:
 
-- **`openai-key`** — Azure Cognitive Services **Key 1** for `parley-{env}-openai` (fetched via `az cognitiveservices account keys list`), **not** a platform.openai.com `sk-…` key.
-- **`mongodb-uri`** — Atlas connection string from `.env` (`SPRING_DATA_MONGODB_URI`).
-- **`twilio-auth-token`** — Twilio auth token from `.env`.
+- **`twilio-auth-token`** — Twilio auth token from `.env`
+- **`mongodb-uri`** — Atlas connection string from `.env` (`SPRING_DATA_MONGODB_URI`)
 
-HCP workspace variable `openai_key_secret_id` on `parley-app` is the versionless URI, e.g. `https://parley-dev-kv.vault.azure.net/secrets/openai-key`.
+Azure OpenAI does **not** use a Key Vault API key — the app authenticates with its managed identity.
 
 ## Local dev checklist
 
@@ -48,6 +46,10 @@ HCP workspace variable `openai_key_secret_id` on `parley-app` is the versionless
 3. `./gradlew bootRun` — Gradle loads `.env` into the bootRun process automatically
 4. `./scripts/verify-voice-preflight.sh` — confirms key is set before a live call
 
-## Future: keyless on Azure
+## Azure troubleshooting
 
-`parley-infra/platform` grants **Cognitive Services OpenAI User** to the app managed identity. The better end state is Entra token auth with no stored key; until then, Key Vault `openai-key` + `SPRING_AI_AZURE_OPENAI_API_KEY` works today.
+| Symptom | Check |
+|---|---|
+| LLM 401/403 on Container App | Managed identity has **Cognitive Services OpenAI User** on `parley-*-openai`; `AZURE_CLIENT_ID` matches foundation identity |
+| Wrong model | `SPRING_AI_OPENAI_CHAT_MICROSOFT_DEPLOYMENT_NAME` matches Terraform deployment (`gpt-4.1-mini`) |
+| Endpoint errors | `SPRING_AI_OPENAI_BASE_URL` from platform output; `SPRING_AI_OPENAI_MICROSOFT_FOUNDRY=true` |
