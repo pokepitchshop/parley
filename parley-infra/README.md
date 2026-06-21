@@ -50,7 +50,8 @@ Set `min_replicas = 1` only in prod if cold-start latency exceeds Twilio's webho
 2. Register providers: `az provider register -n Microsoft.App --wait`.
 3. Set up Terraform -> Azure auth (an OIDC service principal, or ARM_* creds on the HCP workspaces).
 4. In HCP Terraform (`pokepitchshop-org`) create three workspaces: `parley-foundation`, `parley-platform`, `parley-app`.
-5. Put secrets (TWILIO_*, the Key Vault secret IDs) as **workspace variables** on `parley-app` — never in git.
+5. Put secrets (TWILIO_*, Azure OpenAI key, MongoDB URI) as **workspace variables** on `parley-app` — never in git.
+   Store secret *values* in Key Vault after platform apply; reference versionless secret IDs in workspace vars.
 6. Copy `environments/dev.tfvars.example` -> `dev.tfvars` and fill in `subscription_id`.
 
 ## Apply order (foundation -> platform -> app)
@@ -64,6 +65,8 @@ cd ../app      && terraform init && terraform apply -var-file=../environments/de
 `terraform output app_url` gives the public HTTPS base. Point Twilio's voice webhook to
 `<app_url>/voice` — that's POK-11, and it retires the ngrok step (POK-10).
 
+Step-by-step apply, image deploy, and Twilio cutover: [`docs/azure-deploy.md`](../docs/azure-deploy.md).
+
 ## Deploy the app image (from the parley/ repo)
 ```
 ./gradlew bootBuildImage --imageName=<acr_login_server>/parley:latest
@@ -73,9 +76,10 @@ docker push <acr_login_server>/parley:latest
 Then bump `var.image_tag` (or re-apply `app`) to roll a new revision.
 
 ## Spring AI
-Use the `spring-ai-starter-model-azure-openai` starter. The Container App injects
-`SPRING_AI_AZURE_OPENAI_*` env vars (relaxed binding -> `spring.ai.azure.openai.*`), so the app
-needs no hardcoded endpoint/key. Keyless via the managed identity is the better end state.
+Spring AI 2.0 uses the **OpenAI starter** for both local dev and Azure-hosted models. Locally,
+set `OPENAI_API_KEY`; on Container Apps the `azure` profile points the same client at Azure OpenAI
+via `SPRING_AI_AZURE_OPENAI_*` env vars (relaxed binding → `spring.ai.openai.*` in
+`application-azure.properties`). Keyless via managed identity is the better end state.
 
 ## Notes / TODO
 - Region defaults to `eastus2` (Azure OpenAI availability). Confirm model + version in your region.
