@@ -33,6 +33,28 @@ cp parley-infra/environments/dev.tfvars.example parley-infra/environments/dev.tf
 
 Cheap dev defaults are already in the example: `min_replicas = 0`, `log_analytics_daily_quota_gb = 0.5`.
 
+### MongoDB (Atlas)
+
+Parley stores callers, transcripts, and summaries in MongoDB. **Azure Container Apps cannot use `localhost`** — use [MongoDB Atlas](https://www.mongodb.com/atlas) (free M0 tier is enough for dev).
+
+1. Create a cluster (any cloud region; pick one close to `eastus2` if unsure).
+2. **Database Access** → add a user with read/write on the `parley` database.
+3. **Network Access** → for dev, add `0.0.0.0/0` (Container Apps use dynamic egress IPs).
+4. **Connect** → **Drivers** → copy the `mongodb+srv://…` URI.
+5. Replace `<password>` and set the database path to `/parley`:
+
+```text
+mongodb+srv://myuser:PASSWORD@cluster0.xxxxx.mongodb.net/parley?retryWrites=true&w=majority
+```
+
+6. Add to repo-root `.env` (never commit):
+
+```bash
+SPRING_DATA_MONGODB_URI=mongodb+srv://...
+```
+
+`./scripts/seed-parley-keyvault.sh` (or `./scripts/apply-parley-infra.sh`) copies this into Key Vault as `mongodb-uri`.
+
 ## 2. HCP workspace variables (secrets — never in git)
 
 Set on the **`parley-app`** workspace:
