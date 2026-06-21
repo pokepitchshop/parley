@@ -138,5 +138,5 @@ Stop ngrok — Twilio now hits the stable Azure URL.
 |---|---|
 | Container App won't start | `az containerapp logs show` — missing Key Vault secret or bad Mongo URI |
 | `/voice` 502/504 on first call | Cold start; wait and retry, or set `min_replicas = 1` |
-| LLM errors in Azure | Key Vault `openai-key`, deployment name `gpt-4o-mini`, managed identity OpenAI role |
+| LLM errors in Azure | Key Vault `openai-key`, deployment name `gpt-4.1-mini`, managed identity OpenAI role |
 | Transcripts not saving | Key Vault `mongodb-uri` secret and network access from Container Apps egress |

@@ -23,7 +23,7 @@ output "openai_endpoint" {
 }
 
 output "openai_deployment_name" {
-  value = azurerm_cognitive_deployment.gpt4o_mini.name
+  value = azurerm_cognitive_deployment.llm.name
 }
 
 output "container_app_environment_id" {

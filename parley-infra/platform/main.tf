@@ -59,18 +59,18 @@ resource "azurerm_cognitive_account" "openai" {
   custom_subdomain_name = "${local.prefix}-openai" # required for token (keyless) auth
 }
 
-resource "azurerm_cognitive_deployment" "gpt4o_mini" {
-  name                 = "gpt-4o-mini" # the deployment name Spring AI routes by
+resource "azurerm_cognitive_deployment" "llm" {
+  name                 = var.openai_deployment_name
   cognitive_account_id = azurerm_cognitive_account.openai.id
 
   model {
     format  = "OpenAI"
-    name    = "gpt-4o-mini"
+    name    = var.openai_model_name
     version = var.openai_model_version
   }
 
   sku {
-    name     = "GlobalStandard"
+    name     = var.openai_deployment_sku
     capacity = var.openai_capacity
   }
 }
