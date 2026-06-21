@@ -4,7 +4,7 @@ data "azurerm_client_config" "current" {}
 data "terraform_remote_state" "foundation" {
   backend = "remote"
   config = {
-    organization = "pokepitchshop-org"
+    organization = "pokepitchshop"
     workspaces = {
       name = "parley-foundation"
     }
@@ -35,12 +35,12 @@ resource "azurerm_role_assignment" "acr_pull" {
 
 # ---- Key Vault (RBAC mode) ----
 resource "azurerm_key_vault" "kv" {
-  name                      = "${local.prefix}-kv" # <= 24 chars, globally unique
-  resource_group_name       = local.rg_name
-  location                  = local.location
-  tenant_id                 = data.azurerm_client_config.current.tenant_id
-  sku_name                  = "standard"
-  enable_rbac_authorization = true
+  name                       = "${local.prefix}-kv" # <= 24 chars, globally unique
+  resource_group_name        = local.rg_name
+  location                   = local.location
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = "standard"
+  rbac_authorization_enabled = true
 }
 
 resource "azurerm_role_assignment" "kv_secrets_user" {

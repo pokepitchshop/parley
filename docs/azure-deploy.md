@@ -8,18 +8,23 @@ For Terraform layer details and cost discipline, see [`parley-infra/README.md`](
 ## Prerequisites
 
 - Azure subscription with `az login` (or HCP Terraform Azure OIDC configured)
-- [Terraform CLI](https://developer.hashicorp.com/terraform/install) + HCP Terraform access to org `pokepitchshop-org`
+- Run `./scripts/audit-azure-subscription.sh` first (POK-111) — see [`docs/azure-discovery-audit.md`](azure-discovery-audit.md)
+- Run `./scripts/bootstrap-hcp-terraform.sh` (POK-112) — see [`docs/hcp-terraform-bootstrap.md`](hcp-terraform-bootstrap.md)
+- Run `./scripts/validate-parley-infra.sh` (POK-113) before apply
+- [Terraform CLI](https://developer.hashicorp.com/terraform/install) + HCP Terraform access to org `pokepitchshop`
 - Docker (for `bootBuildImage` push to ACR)
 - Three HCP workspaces: `parley-foundation`, `parley-platform`, `parley-app`
 - MongoDB connection string (Atlas free tier is fine for dev) stored in Key Vault before the app apply
 
-Register Container Apps once per subscription:
+Register Container Apps once per subscription (or use `./scripts/bootstrap-hcp-terraform.sh` which registers all required providers):
 
 ```bash
-az provider register -n Microsoft.App --wait
+./scripts/bootstrap-hcp-terraform.sh
 ```
 
 ## 1. Configure tfvars (non-secrets)
+
+The bootstrap script creates `parley-infra/environments/dev.tfvars` from the example. To recreate manually:
 
 ```bash
 cp parley-infra/environments/dev.tfvars.example parley-infra/environments/dev.tfvars
