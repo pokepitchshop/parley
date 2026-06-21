@@ -92,10 +92,14 @@ docker push <acr_login_server>/parley:latest
 Then bump `var.image_tag` (or re-apply `app`) to roll a new revision.
 
 ## Spring AI
+
+Decision and key sources: [`docs/llm-provider.md`](../docs/llm-provider.md) (POK-110).
+
 Spring AI 2.0 uses the **OpenAI starter** for both local dev and Azure-hosted models. Locally,
-set `OPENAI_API_KEY`; on Container Apps the `azure` profile points the same client at Azure OpenAI
+set `OPENAI_API_KEY` (platform.openai.com `sk-…`); on Container Apps the `azure` profile points the same client at Azure OpenAI
 via `SPRING_AI_AZURE_OPENAI_*` env vars (relaxed binding → `spring.ai.openai.*` in
-`application-azure.properties`). Keyless via managed identity is the better end state.
+`application-azure.properties`). Key Vault `openai-key` holds the **Azure Cognitive Services** key, not an OpenAI.com key.
+Keyless via managed identity is the better end state (RBAC already granted).
 
 ## Notes / TODO
 - Region defaults to `eastus2` (Azure OpenAI availability). Confirm model + version in your region.

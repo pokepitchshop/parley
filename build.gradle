@@ -47,3 +47,17 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// Load repo-root .env into bootRun (Spring Boot does not read .env files itself)
+tasks.named('bootRun') {
+	def envFile = file('.env')
+	if (envFile.exists()) {
+		envFile.readLines().each { line ->
+			if (line.startsWith('#') || !line.contains('=')) {
+				return
+			}
+			def idx = line.indexOf('=')
+			environment line.substring(0, idx).trim(), line.substring(idx + 1).trim()
+		}
+	}
+}

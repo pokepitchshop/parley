@@ -6,7 +6,7 @@ End-to-end test that Parley handles a real phone call: greeting, turn loop, and 
 
 Complete [twilio-public-url.md](twilio-public-url.md):
 
-- `./gradlew bootRun` with `OPENAI_API_KEY` set
+- `./gradlew bootRun` with `OPENAI_API_KEY` in `.env` (loaded automatically — see [llm-provider.md](llm-provider.md))
 - ngrok (or hosted `app_url`) with `PUBLIC_BASE_URL` in `.env`
 - Twilio number webhooks to `{PUBLIC_BASE_URL}/voice` (POST)
 

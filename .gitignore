@@ -4,7 +4,7 @@
 !.env.example
 !**/.env.example
 
-# Spring Boot local overrides (Twilio, OpenAI, Mongo, etc.)
+# Spring Boot local overrides (personal secrets — never commit)
 application-local.properties
 application-local.yml
 application-local.yaml
@@ -15,6 +15,8 @@ application-*.local.yaml
 **/*-local.properties
 **/*-local.yml
 **/*-local.yaml
+# Committed profile template (env var placeholders only — no secrets)
+!src/main/resources/application-local.properties
 
 # Private keys & certificates
 *.pem

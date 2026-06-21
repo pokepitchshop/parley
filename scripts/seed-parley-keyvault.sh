@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# POK-114: Seed Key Vault secrets after platform apply. Values from env — never committed.
+# Seed Key Vault secrets after platform apply. Values from env / Azure — never committed.
+# openai-key = Azure Cognitive Services Key 1 (NOT platform.openai.com sk-…). See docs/llm-provider.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
