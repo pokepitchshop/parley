@@ -9,7 +9,7 @@ terraform {
   }
 
   cloud {
-    organization = "pokepitchshop-org"
+    organization = "pokepitchshop"
     workspaces {
       name = "parley-platform"
     }

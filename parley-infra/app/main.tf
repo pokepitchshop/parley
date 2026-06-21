@@ -1,7 +1,7 @@
 data "terraform_remote_state" "foundation" {
   backend = "remote"
   config = {
-    organization = "pokepitchshop-org"
+    organization = "pokepitchshop"
     workspaces = {
       name = "parley-foundation"
     }
@@ -11,7 +11,7 @@ data "terraform_remote_state" "foundation" {
 data "terraform_remote_state" "platform" {
   backend = "remote"
   config = {
-    organization = "pokepitchshop-org"
+    organization = "pokepitchshop"
     workspaces = {
       name = "parley-platform"
     }

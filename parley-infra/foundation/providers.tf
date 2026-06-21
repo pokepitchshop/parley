@@ -8,10 +8,10 @@ terraform {
     }
   }
 
-  # State + runs in HCP Terraform. Create this workspace in pokepitchshop-org first.
+  # State + runs in HCP Terraform. Create this workspace in pokepitchshop first.
   # For staging/prod, point at parley-foundation-staging / -prod instead.
   cloud {
-    organization = "pokepitchshop-org"
+    organization = "pokepitchshop"
     workspaces {
       name = "parley-foundation"
     }
