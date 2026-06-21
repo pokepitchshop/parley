@@ -5,7 +5,7 @@ State + runs live in HCP Terraform (org: `pokepitchshop`).
 
 ## Layers
 - `foundation/` — resource group + the managed identity Parley runs as. Rarely changes.
-- `platform/`   — ACR, Key Vault, Azure OpenAI (gpt-4o-mini), Container Apps environment.
+- `platform/`   — ACR, Key Vault, Azure OpenAI (gpt-4.1-mini), Container Apps environment.
 - `app/`        — the Parley Container App (ingress, identity, env/secrets).
 
 Each layer is its own state (its own HCP workspace). The `app` layer reads `platform`/`foundation`
@@ -44,7 +44,7 @@ Before first apply, register Container Apps: `az provider register -n Microsoft.
 | Container Apps Environment | Consumption (no dedicated profile) | No base fee |
 | ACR | Basic | ~$5/mo |
 | Key Vault | Standard, RBAC | ~$0 at this volume |
-| Azure OpenAI | gpt-4o-mini, pay-per-token | ~$0 idle; `openai_capacity` is TPM cap only |
+| Azure OpenAI | gpt-4.1-mini (`Standard` SKU in dev), pay-per-token | ~$0 idle; `openai_capacity` is TPM cap only. gpt-4o-mini 2024-07-18 deprecated in eastus2. |
 | Log Analytics | PerGB2018, 0.5 GB/day quota, 30-day retention | Capped ingestion |
 
 Set `min_replicas = 1` only in prod if cold-start latency exceeds Twilio's webhook timeout.
@@ -99,6 +99,6 @@ via `SPRING_AI_AZURE_OPENAI_*` env vars (relaxed binding → `spring.ai.openai.*
 
 ## Notes / TODO
 - Region defaults to `eastus2` (Azure OpenAI availability). Confirm model + version in your region.
-- Verify the current `gpt-4o-mini` version in `platform/variables.tf`.
+- Verify the current model version in `platform/variables.tf` (`az cognitiveservices account list-models`).
 - Starter template: run `terraform fmt` and `terraform validate` in each layer before applying.
 - For staging/prod, create matching HCP workspaces and apply with `staging.tfvars` / `prod.tfvars`.

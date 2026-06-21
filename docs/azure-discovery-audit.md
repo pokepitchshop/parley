@@ -72,4 +72,4 @@ No existing Cognitive Services accounts in `eastus2`. Parley will create `parley
 |---|---|
 | [POK-112](https://linear.app/pokepitchshop/issue/POK-112) | Finish: `terraform login` + HCP workspaces; re-run bootstrap script |
 | [POK-113](https://linear.app/pokepitchshop/issue/POK-113) | `terraform fmt` + `validate` all layers |
-| [POK-114](https://linear.app/pokepitchshop/issue/POK-114) | Apply foundation → platform → app |
+| [POK-114](https://linear.app/pokepitchshop/issue/POK-114) | `./scripts/apply-parley-infra.sh` |

@@ -18,14 +18,32 @@ variable "project" {
   default = "parley"
 }
 
+variable "openai_deployment_name" {
+  type        = string
+  description = "Azure OpenAI deployment name (Spring AI deployment-name)."
+  default     = "gpt-4.1-mini"
+}
+
+variable "openai_model_name" {
+  type        = string
+  description = "Azure OpenAI model name."
+  default     = "gpt-4.1-mini"
+}
+
 variable "openai_model_version" {
   type        = string
-  description = "Azure OpenAI gpt-4o-mini model version. Verify the current value in your region."
-  default     = "2024-07-18"
+  description = "Azure OpenAI model version. Verify in your region: az cognitiveservices account list-models."
+  default     = "2025-04-14"
+}
+
+variable "openai_deployment_sku" {
+  type        = string
+  description = "Deployment SKU. Use Standard in eastus2 unless GlobalStandard quota is approved."
+  default     = "Standard"
 }
 
 variable "openai_capacity" {
-  type        = string
+  type        = number
   description = "Tokens-per-minute capacity (in thousands) for the deployment."
   default     = 10
 }

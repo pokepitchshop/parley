@@ -49,7 +49,7 @@ In [HCP Terraform](https://app.terraform.io) → org `pokepitchshop` → **New w
 
 For each workspace:
 
-1. **Execution mode:** CLI (local) or Remote — either works; repo uses HCP for state.
+1. **Execution mode:** set **Local** on all three workspaces so `terraform apply` uses your machine's `az login` credentials. Remote execution requires OIDC or `ARM_*` env vars on the workspace.
 2. **Azure authentication** (pick one):
    - **Recommended:** Dynamic provider credentials (OIDC) — [Azure OIDC for HCP Terraform](https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/azure-configuration)
    - **Dev shortcut:** Environment variables on the workspace (or export locally before apply):
@@ -84,6 +84,6 @@ Expect `terraform init` to succeed in all three layers.
 | Issue | Action |
 |---|---|
 | [POK-113](https://linear.app/pokepitchshop/issue/POK-113) | `terraform fmt` + `validate` all layers |
-| [POK-114](https://linear.app/pokepitchshop/issue/POK-114) | Apply foundation → platform → app |
+| [POK-114](https://linear.app/pokepitchshop/issue/POK-114) | `./scripts/apply-parley-infra.sh` |
 
 See also [`docs/azure-deploy.md`](azure-deploy.md).

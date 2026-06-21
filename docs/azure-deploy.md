@@ -33,6 +33,28 @@ cp parley-infra/environments/dev.tfvars.example parley-infra/environments/dev.tf
 
 Cheap dev defaults are already in the example: `min_replicas = 0`, `log_analytics_daily_quota_gb = 0.5`.
 
+### MongoDB (Atlas)
+
+Parley stores callers, transcripts, and summaries in MongoDB. **Azure Container Apps cannot use `localhost`** — use [MongoDB Atlas](https://www.mongodb.com/atlas) (free M0 tier is enough for dev).
+
+1. Create a cluster (any cloud region; pick one close to `eastus2` if unsure).
+2. **Database Access** → add a user with read/write on the `parley` database.
+3. **Network Access** → for dev, add `0.0.0.0/0` (Container Apps use dynamic egress IPs).
+4. **Connect** → **Drivers** → copy the `mongodb+srv://…` URI.
+5. Replace `<password>` and set the database path to `/parley`:
+
+```text
+mongodb+srv://myuser:PASSWORD@cluster0.xxxxx.mongodb.net/parley?retryWrites=true&w=majority
+```
+
+6. Add to repo-root `.env` (never commit):
+
+```bash
+SPRING_DATA_MONGODB_URI=mongodb+srv://...
+```
+
+`./scripts/seed-parley-keyvault.sh` (or `./scripts/apply-parley-infra.sh`) copies this into Key Vault as `mongodb-uri`.
+
 ## 2. HCP workspace variables (secrets — never in git)
 
 Set on the **`parley-app`** workspace:
@@ -64,8 +86,18 @@ Use the versionless secret IDs Terraform expects, e.g.:
 ## 3. Apply Terraform (foundation → platform → app)
 
 ```bash
+chmod +x scripts/apply-parley-infra.sh scripts/seed-parley-keyvault.sh
+PARLEY_TF_AUTO_APPROVE=1 ./scripts/apply-parley-infra.sh
+```
+
+The script validates (POK-113), applies foundation and platform, seeds Key Vault from `.env`, exports `TF_VAR_*` for the app layer, then applies app.
+
+Manual steps (equivalent):
+
+```bash
 cd parley-infra/foundation && terraform init && terraform apply -var-file=../environments/dev.tfvars
 cd ../platform   && terraform init && terraform apply -var-file=../environments/dev.tfvars
+./scripts/seed-parley-keyvault.sh
 cd ../app        && terraform init && terraform apply -var-file=../environments/dev.tfvars
 ```
 
@@ -128,5 +160,5 @@ Stop ngrok — Twilio now hits the stable Azure URL.
 |---|---|
 | Container App won't start | `az containerapp logs show` — missing Key Vault secret or bad Mongo URI |
 | `/voice` 502/504 on first call | Cold start; wait and retry, or set `min_replicas = 1` |
-| LLM errors in Azure | Key Vault `openai-key`, deployment name `gpt-4o-mini`, managed identity OpenAI role |
+| LLM errors in Azure | Key Vault `openai-key`, deployment name `gpt-4.1-mini`, managed identity OpenAI role |
 | Transcripts not saving | Key Vault `mongodb-uri` secret and network access from Container Apps egress |
