@@ -31,7 +31,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 	implementation 'org.springframework.boot:spring-boot-starter-restclient'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-	implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+	implementation 'org.springframework.ai:spring-ai-openai'
+	implementation 'org.springframework.ai:spring-ai-autoconfigure-model-openai'
+	implementation 'org.springframework.ai:spring-ai-client-chat'
+	implementation 'org.springframework.ai:spring-ai-autoconfigure-model-chat-client'
+	implementation 'org.springframework.ai:spring-ai-autoconfigure-model-chat-memory'
+	implementation 'com.azure:azure-identity:1.15.4'
 	implementation 'com.twilio.sdk:twilio:10.6.4'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -46,4 +51,18 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// Load repo-root .env into bootRun (Spring Boot does not read .env files itself)
+tasks.named('bootRun') {
+	def envFile = file('.env')
+	if (envFile.exists()) {
+		envFile.readLines().each { line ->
+			if (line.startsWith('#') || !line.contains('=')) {
+				return
+			}
+			def idx = line.indexOf('=')
+			environment line.substring(0, idx).trim(), line.substring(idx + 1).trim()
+		}
+	}
 }

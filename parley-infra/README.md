@@ -92,10 +92,22 @@ docker push <acr_login_server>/parley:latest
 Then bump `var.image_tag` (or re-apply `app`) to roll a new revision.
 
 ## Spring AI
-Spring AI 2.0 uses the **OpenAI starter** for both local dev and Azure-hosted models. Locally,
-set `OPENAI_API_KEY`; on Container Apps the `azure` profile points the same client at Azure OpenAI
-via `SPRING_AI_AZURE_OPENAI_*` env vars (relaxed binding → `spring.ai.openai.*` in
-`application-azure.properties`). Keyless via managed identity is the better end state.
+
+Decision and auth: [`docs/llm-provider.md`](../docs/llm-provider.md) (POK-110).
+
+Single OpenAI model modules; Azure OpenAI via Microsoft Foundry (Spring AI 2.0 — no separate azure artifact):
+
+```gradle
+implementation 'org.springframework.ai:spring-ai-openai'
+implementation 'org.springframework.ai:spring-ai-autoconfigure-model-openai'
+implementation 'org.springframework.ai:spring-ai-client-chat'
+implementation 'org.springframework.ai:spring-ai-autoconfigure-model-chat-client'
+implementation 'org.springframework.ai:spring-ai-autoconfigure-model-chat-memory'
+implementation 'com.azure:azure-identity'
+```
+
+- **Local:** `AZURE_OPENAI_API_KEY` + endpoint from portal
+- **Azure:** keyless managed identity (`AZURE_CLIENT_ID` + platform RBAC)
 
 ## Notes / TODO
 - Region defaults to `eastus2` (Azure OpenAI availability). Confirm model + version in your region.

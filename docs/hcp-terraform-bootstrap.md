@@ -63,7 +63,6 @@ Set in HCP UI → `parley-app` → Variables. Mark sensitive values as **Sensiti
 | Variable | When | Example |
 |---|---|---|
 | `twilio_account_sid` | Before app apply | `AC...` |
-| `openai_key_secret_id` | After platform apply + KV seed | `https://parley-dev-kv.vault.azure.net/secrets/openai-key` |
 | `twilio_token_secret_id` | After platform apply + KV seed | `https://parley-dev-kv.vault.azure.net/secrets/twilio-auth-token` |
 | `mongodb_uri_secret_id` | After platform apply + KV seed | `https://parley-dev-kv.vault.azure.net/secrets/mongodb-uri` |
 

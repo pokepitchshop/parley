@@ -6,7 +6,7 @@ End-to-end test that Parley handles a real phone call: greeting, turn loop, and 
 
 Complete [twilio-public-url.md](twilio-public-url.md):
 
-- `./gradlew bootRun` with `OPENAI_API_KEY` set
+- `./gradlew bootRun` with Azure OpenAI vars in `.env` (see [llm-provider.md](llm-provider.md))
 - ngrok (or hosted `app_url`) with `PUBLIC_BASE_URL` in `.env`
 - Twilio number webhooks to `{PUBLIC_BASE_URL}/voice` (POST)
 
@@ -40,7 +40,7 @@ System prompt in `ChatClientConfig` is tuned for short, spoken answers and same-
 | Symptom | Check |
 |---------|--------|
 | Call fails / busy | `bootRun` running; ngrok tunnel up; webhook URL matches `PUBLIC_BASE_URL` |
-| Robotic error / application error | App logs; `OPENAI_API_KEY` set; Twilio debugger for webhook 4xx/5xx |
+| Robotic error / application error | App logs; `AZURE_OPENAI_API_KEY` + `SPRING_AI_OPENAI_BASE_URL` set; Twilio debugger for webhook 4xx/5xx |
 | No memory on turn two | POK-9 `ChatMemory` + `CallSid` on `/voice/respond`; same call (don't hang up) |
 | Long awkward pause after you speak | Lower `parley.voice.speech-timeout` (try `2`) |
 | Cut off mid-sentence | Raise `speech-timeout` slightly (try `4`) |

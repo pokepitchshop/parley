@@ -50,7 +50,6 @@ KV_URI=$(cd "$ROOT/parley-infra/platform" && terraform output -raw key_vault_uri
 : "${TWILIO_ACCOUNT_SID:?Set TWILIO_ACCOUNT_SID in .env before app apply}"
 
 export TF_VAR_twilio_account_sid="$TWILIO_ACCOUNT_SID"
-export TF_VAR_openai_key_secret_id="${KV_URI}secrets/openai-key"
 export TF_VAR_twilio_token_secret_id="${KV_URI}secrets/twilio-auth-token"
 export TF_VAR_mongodb_uri_secret_id="${KV_URI}secrets/mongodb-uri"
 
