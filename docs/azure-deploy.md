@@ -26,6 +26,11 @@ Register Container Apps once per subscription (or use `./scripts/bootstrap-hcp-t
 
 The bootstrap script creates `parley-infra/environments/dev.tfvars` from the example. To recreate manually:
 
+```bash
+cp parley-infra/environments/dev.tfvars.example parley-infra/environments/dev.tfvars
+# Edit subscription_id (and optional scaling overrides)
+```
+
 Cheap dev defaults are already in the example: `min_replicas = 0`, `log_analytics_daily_quota_gb = 0.5`.
 
 ## 2. HCP workspace variables (secrets — never in git)
