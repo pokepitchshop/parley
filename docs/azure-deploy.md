@@ -64,8 +64,18 @@ Use the versionless secret IDs Terraform expects, e.g.:
 ## 3. Apply Terraform (foundation → platform → app)
 
 ```bash
+chmod +x scripts/apply-parley-infra.sh scripts/seed-parley-keyvault.sh
+PARLEY_TF_AUTO_APPROVE=1 ./scripts/apply-parley-infra.sh
+```
+
+The script validates (POK-113), applies foundation and platform, seeds Key Vault from `.env`, exports `TF_VAR_*` for the app layer, then applies app.
+
+Manual steps (equivalent):
+
+```bash
 cd parley-infra/foundation && terraform init && terraform apply -var-file=../environments/dev.tfvars
 cd ../platform   && terraform init && terraform apply -var-file=../environments/dev.tfvars
+./scripts/seed-parley-keyvault.sh
 cd ../app        && terraform init && terraform apply -var-file=../environments/dev.tfvars
 ```
 
