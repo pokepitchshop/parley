@@ -98,6 +98,13 @@ PARLEY_TF_AUTO_APPROVE=1 ./scripts/apply-parley-infra.sh
 
 The script validates (POK-113), applies foundation and platform, seeds Key Vault from `.env`, exports `TF_VAR_*` for the app layer, then applies app.
 
+If foundation and platform are already applied (POK-114 partial), apply the app layer only:
+
+```bash
+chmod +x scripts/apply-parley-app.sh
+PARLEY_TF_AUTO_APPROVE=1 ./scripts/apply-parley-app.sh
+```
+
 Manual steps (equivalent):
 
 ```bash
@@ -167,6 +174,8 @@ See [llm-provider.md](llm-provider.md) for the full decision (POK-110).
 | Symptom | Check |
 |---|---|
 | Container App won't start | `az containerapp logs show` — missing Key Vault secret or bad Mongo URI |
+| App apply: KV secret fetch failed | Run `./scripts/seed-parley-keyvault.sh` — needs **Key Vault Secrets Officer** on `parley-dev-kv`; then `./scripts/verify-parley-infra-ready.sh` |
+| `.env` parse error in scripts | MongoDB URI contains `&` — scripts use `scripts/lib/load-dotenv.sh` (safe loader) |
 | `/voice` 502/504 on first call | Cold start; wait and retry, or set `min_replicas = 1` |
 | LLM errors in Azure | Managed identity **Cognitive Services OpenAI User** role, `AZURE_CLIENT_ID` set, deployment `gpt-4.1-mini` — see [llm-provider.md](llm-provider.md) |
 | Transcripts not saving | Key Vault `mongodb-uri` secret and network access from Container Apps egress |

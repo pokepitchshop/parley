@@ -103,6 +103,10 @@ resource "azurerm_container_app" "parley" {
         value = local.openai_deploy
       }
       env {
+        name  = "SPRING_AI_OPENAI_CHAT_MODEL"
+        value = local.openai_deploy
+      }
+      env {
         name  = "TWILIO_ACCOUNT_SID"
         value = var.twilio_account_sid
       }

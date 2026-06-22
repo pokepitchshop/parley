@@ -5,11 +5,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/load-dotenv.sh"
 if [[ -f "$ROOT/.env" ]]; then
-	set -a
-	# shellcheck disable=SC1091
-	source "$ROOT/.env"
-	set +a
+	load_dotenv "$ROOT/.env"
 fi
 
 : "${TWILIO_ACCOUNT_SID:?Set TWILIO_ACCOUNT_SID}"

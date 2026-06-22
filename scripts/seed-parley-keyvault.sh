@@ -4,11 +4,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/load-dotenv.sh"
 if [[ -f "$ROOT/.env" ]]; then
-	set -a
-	# shellcheck disable=SC1091
-	source "$ROOT/.env"
-	set +a
+	load_dotenv "$ROOT/.env"
 fi
 
 : "${TWILIO_AUTH_TOKEN:?Set TWILIO_AUTH_TOKEN in .env or env}"
@@ -36,8 +35,16 @@ KV_NAME="${KV_URI#https://}"
 KV_NAME="${KV_NAME%%.vault.azure.net/}"
 
 echo "Seeding Key Vault ${KV_NAME}..."
-az keyvault secret set --vault-name "$KV_NAME" --name twilio-auth-token --value "$TWILIO_AUTH_TOKEN" >/dev/null
-az keyvault secret set --vault-name "$KV_NAME" --name mongodb-uri --value "$SPRING_DATA_MONGODB_URI" >/dev/null
+if ! az keyvault secret set --vault-name "$KV_NAME" --name twilio-auth-token --value "$TWILIO_AUTH_TOKEN" >/dev/null 2>&1; then
+	echo "FAIL Could not write twilio-auth-token to ${KV_NAME}." >&2
+	echo "     Grant yourself Key Vault Secrets Officer on the vault, then retry." >&2
+	exit 1
+fi
+if ! az keyvault secret set --vault-name "$KV_NAME" --name mongodb-uri --value "$SPRING_DATA_MONGODB_URI" >/dev/null 2>&1; then
+	echo "FAIL Could not write mongodb-uri to ${KV_NAME}." >&2
+	echo "     Grant yourself Key Vault Secrets Officer on the vault, then retry." >&2
+	exit 1
+fi
 
 echo "OK   Secrets set: twilio-auth-token, mongodb-uri"
 echo "     twilio_token_secret_id=${KV_URI}secrets/twilio-auth-token"
