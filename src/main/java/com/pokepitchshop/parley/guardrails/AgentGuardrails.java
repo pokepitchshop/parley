@@ -32,6 +32,10 @@ public final class AgentGuardrails {
 			If you cannot do it yet, explain that clearly and offer a supported alternative.
 			""";
 
+	public static final String LLM_UNAVAILABLE = """
+			Sorry, I'm having trouble thinking of an answer right now. Please try again in a moment.
+			""";
+
 	private AgentGuardrails() {
 	}
 
