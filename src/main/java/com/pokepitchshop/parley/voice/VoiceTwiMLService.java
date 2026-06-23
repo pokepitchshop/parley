@@ -197,13 +197,13 @@ public class VoiceTwiMLService {
 				.action(RESPOND_ACTION)
 				.method(HttpMethod.POST)
 				.inputs(Gather.Input.SPEECH)
-				.speechTimeout(String.valueOf(voiceProperties.getSpeechTimeout()))
+				.speechTimeout(String.valueOf(voiceProperties.speechTimeout()))
 				.build();
 	}
 
 	private Say.Voice sayVoice() {
 		try {
-			return Say.Voice.valueOf(voiceProperties.getSayVoice());
+			return Say.Voice.valueOf(voiceProperties.sayVoice());
 		}
 		catch (IllegalArgumentException ex) {
 			return Say.Voice.POLLY_JOANNA_NEURAL;

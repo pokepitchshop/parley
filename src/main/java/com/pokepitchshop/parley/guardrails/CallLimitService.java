@@ -24,7 +24,7 @@ public class CallLimitService {
 	}
 
 	public boolean hasReachedTurnLimit(String callSid) {
-		return countTurns(callSid) >= voiceProperties.getMaxTurnsPerCall();
+		return countTurns(callSid) >= voiceProperties.maxTurnsPerCall();
 	}
 
 	public int countTurns(String callSid) {
@@ -40,7 +40,7 @@ public class CallLimitService {
 		if (!StringUtils.hasText(callSid)) {
 			return false;
 		}
-		return toolCallCount(callSid) < voiceProperties.getMaxToolCallsPerCall();
+		return toolCallCount(callSid) < voiceProperties.maxToolCallsPerCall();
 	}
 
 	public void recordToolCall(String callSid) {
