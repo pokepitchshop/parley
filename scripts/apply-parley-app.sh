@@ -6,6 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
 source "$ROOT/scripts/lib/load-dotenv.sh"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/export-app-tfvars.sh"
 ENV="${PARLEY_INFRA_ENV:-dev}"
 TFVARS="$ROOT/parley-infra/environments/${ENV}.tfvars"
 AUTO="${PARLEY_TF_AUTO_APPROVE:-}"
@@ -31,12 +33,7 @@ else
 	"$ROOT/scripts/seed-parley-keyvault.sh"
 fi
 
-KV_URI=$(cd "$ROOT/parley-infra/platform" && terraform output -raw key_vault_uri)
-: "${TWILIO_ACCOUNT_SID:?Set TWILIO_ACCOUNT_SID in .env before app apply}"
-
-export TF_VAR_twilio_account_sid="$TWILIO_ACCOUNT_SID"
-export TF_VAR_twilio_token_secret_id="${KV_URI}secrets/twilio-auth-token"
-export TF_VAR_mongodb_uri_secret_id="${KV_URI}secrets/mongodb-uri"
+export_parley_app_tfvars "$ROOT"
 
 if [[ "${PARLEY_SKIP_KV_PREFLIGHT:-}" != "1" && "${PARLEY_SKIP_KV_PREFLIGHT:-}" != "true" ]]; then
 	"$ROOT/scripts/verify-parley-infra-ready.sh"
