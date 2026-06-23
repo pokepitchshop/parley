@@ -31,6 +31,8 @@ public class VoiceTwiMLService {
 
 	static final String RESPOND_ACTION = "/voice/respond";
 
+	static final String REPLY_PATH = "/voice/reply";
+
 	private final ChatClient chatClient;
 
 	private final VoiceProperties voiceProperties;
@@ -47,6 +49,8 @@ public class VoiceTwiMLService {
 
 	private final ToolCallGuardrail toolCallGuardrail;
 
+	private final PendingTurnStore pendingTurnStore;
+
 	public VoiceTwiMLService(
 			ChatClient chatClient,
 			VoiceProperties voiceProperties,
@@ -55,7 +59,8 @@ public class VoiceTwiMLService {
 			CallLimitService callLimitService,
 			OutOfScopeDetector outOfScopeDetector,
 			ToolTurnDetector toolTurnDetector,
-			ToolCallGuardrail toolCallGuardrail) {
+			ToolCallGuardrail toolCallGuardrail,
+			PendingTurnStore pendingTurnStore) {
 		this.chatClient = chatClient;
 		this.voiceProperties = voiceProperties;
 		this.transcriptService = transcriptService;
@@ -64,6 +69,7 @@ public class VoiceTwiMLService {
 		this.outOfScopeDetector = outOfScopeDetector;
 		this.toolTurnDetector = toolTurnDetector;
 		this.toolCallGuardrail = toolCallGuardrail;
+		this.pendingTurnStore = pendingTurnStore;
 	}
 
 	public String openingResponse(String fromNumber) throws TwiMLException {
@@ -96,6 +102,24 @@ public class VoiceTwiMLService {
 			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
 			return conversationTurnResponse(reply);
 		}
+		pendingTurnStore.store(callSid, fromNumber, speechResult);
+		return acknowledgeAndRedirectToReply();
+	}
+
+	public String reply(String callSid) throws TwiMLException {
+		var pendingTurn = pendingTurnStore.consume(callSid);
+		if (pendingTurn.isEmpty()) {
+			log.warn("No pending turn for CallSid={}; redirecting to opening", callSid);
+			return redirectToOpening();
+		}
+		var turn = pendingTurn.get();
+		if (callLimitService.hasReachedTurnLimit(callSid)) {
+			return callLimitClosingResponse();
+		}
+		return generateReply(callSid, turn.fromNumber(), turn.speech());
+	}
+
+	private String generateReply(String callSid, String fromNumber, String speechResult) throws TwiMLException {
 		CallerContext callerContext = callerService.contextFor(fromNumber);
 		try {
 			var prompt = chatClient.prompt()
@@ -119,6 +143,20 @@ public class VoiceTwiMLService {
 			log.error("LLM turn failed for CallSid={}", callSid, ex);
 			return conversationTurnResponse(AgentGuardrails.LLM_UNAVAILABLE.trim());
 		}
+	}
+
+	public String acknowledgeAndRedirectToReply() throws TwiMLException {
+		Say say = new Say.Builder(AgentGuardrails.THINKING_ACK.trim())
+				.voice(sayVoice())
+				.build();
+		Redirect redirect = new Redirect.Builder(REPLY_PATH)
+				.method(HttpMethod.POST)
+				.build();
+		VoiceResponse response = new VoiceResponse.Builder()
+				.say(say)
+				.redirect(redirect)
+				.build();
+		return response.toXml();
 	}
 
 	public String callLimitClosingResponse() throws TwiMLException {

@@ -44,6 +44,7 @@ System prompt in `ChatClientConfig` is tuned for short, spoken answers and same-
 | `/voice/respond` 500 on first turn | Usually LLM config (Azure key/deployment), not caller lookup — anonymous `CallerContext` is normal for new callers |
 | Repeat caller still gets generic greeting | Needs a completed call with successful turns + `/voice/status` callback; see POK-23 |
 | No memory on turn two | POK-9 `ChatMemory` + `CallSid` on `/voice/respond`; same call (don't hang up) |
+| Agent reply in Mongo but silent on phone | Twilio webhook timeout (15s). Parley acks with "One moment." then runs the LLM on `/voice/reply`; redeploy if missing |
 | Long awkward pause after you speak | Lower `parley.voice.speech-timeout` (try `2`) |
 | Cut off mid-sentence | Raise `speech-timeout` slightly (try `4`) |
 

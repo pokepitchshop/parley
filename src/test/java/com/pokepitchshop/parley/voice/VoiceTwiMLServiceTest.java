@@ -57,6 +57,9 @@ class VoiceTwiMLServiceTest {
 	@Mock
 	private ToolCallGuardrail toolCallGuardrail;
 
+	@Mock
+	private PendingTurnStore pendingTurnStore;
+
 	private VoiceTwiMLService service;
 
 	@BeforeEach
@@ -72,7 +75,8 @@ class VoiceTwiMLServiceTest {
 				callLimitService,
 				outOfScopeDetector,
 				toolTurnDetector,
-				toolCallGuardrail);
+				toolCallGuardrail,
+				pendingTurnStore);
 	}
 
 	@Test
@@ -104,17 +108,16 @@ class VoiceTwiMLServiceTest {
 
 	@Test
 	void respondWhenLlmFailsReturnsSpokenFallback() throws Exception {
-		CallerContext context = CallerContext.anonymous();
+		PendingTurnStore.PendingTurn turn = new PendingTurnStore.PendingTurn("+15551234567", "What are your hours?");
+		given(pendingTurnStore.consume(CALL_SID)).willReturn(java.util.Optional.of(turn));
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
-		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(java.util.Optional.empty());
-		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
-		given(callerService.contextFor("+15551234567")).willReturn(context);
+		given(callerService.contextFor("+15551234567")).willReturn(CallerContext.anonymous());
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
 		given(requestSpec.advisors(any(Consumer.class))).willThrow(new RuntimeException("404 deployment not found"));
 
-		String twiml = service.respond(CALL_SID, "+15551234567", "What are your hours?");
+		String twiml = service.reply(CALL_SID);
 
 		assertThat(twiml).contains("having trouble thinking");
 		assertThat(twiml).contains("<Gather");
@@ -122,12 +125,28 @@ class VoiceTwiMLServiceTest {
 	}
 
 	@Test
-	void respondWithSpeechReturnsReplySayAndGather() throws Exception {
-		CallerContext context = CallerContext.anonymous();
+	void respondWithSpeechAcknowledgesAndRedirectsToReply() throws Exception {
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(java.util.Optional.empty());
 		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
+
+		String twiml = service.respond(CALL_SID, "+15551234567", "What are your hours?");
+
+		assertThat(twiml).contains("One moment.");
+		assertThat(twiml).contains("<Redirect");
+		assertThat(twiml).contains("/voice/reply");
+		verify(pendingTurnStore).store(CALL_SID, "+15551234567", "What are your hours?");
+		verify(chatClient, never()).prompt();
+	}
+
+	@Test
+	void replyWithPendingTurnReturnsReplySayAndGather() throws Exception {
+		PendingTurnStore.PendingTurn turn = new PendingTurnStore.PendingTurn("+15551234567", "What are your hours?");
+		CallerContext context = CallerContext.anonymous();
+		given(pendingTurnStore.consume(CALL_SID)).willReturn(java.util.Optional.of(turn));
+		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(callerService.contextFor("+15551234567")).willReturn(context);
+		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
@@ -135,7 +154,7 @@ class VoiceTwiMLServiceTest {
 		given(requestSpec.call()).willReturn(responseSpec);
 		given(responseSpec.content()).willReturn("We are open until six.");
 
-		String twiml = service.respond(CALL_SID, "+15551234567", "What are your hours?");
+		String twiml = service.reply(CALL_SID);
 
 		assertThat(twiml).contains("We are open until six.");
 		assertThat(twiml).contains("<Gather");
@@ -144,6 +163,17 @@ class VoiceTwiMLServiceTest {
 		verify(requestSpec).system(context.systemPromptSnippet());
 		verify(requestSpec).advisors(any(Consumer.class));
 		verify(transcriptService).appendTurn(CALL_SID, "+15551234567", "What are your hours?", "We are open until six.");
+	}
+
+	@Test
+	void replyWithoutPendingTurnRedirectsToOpening() throws Exception {
+		given(pendingTurnStore.consume(CALL_SID)).willReturn(java.util.Optional.empty());
+
+		String twiml = service.reply(CALL_SID);
+
+		assertThat(twiml).contains("<Redirect");
+		assertThat(twiml).contains("/voice");
+		verify(chatClient, never()).prompt();
 	}
 
 	@Test

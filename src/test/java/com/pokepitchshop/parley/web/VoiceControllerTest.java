@@ -47,12 +47,12 @@ class VoiceControllerTest {
 	}
 
 	@Test
-	void respondReturnsConversationTwiml() throws Exception {
+	void respondReturnsAcknowledgeTwiml() throws Exception {
 		String twiml = """
 				<?xml version="1.0" encoding="UTF-8"?>
 				<Response>
-				<Say voice="Polly.Joanna-Neural">We are open until six.</Say>
-				<Gather input="speech" action="/voice/respond" method="POST"/>
+				<Say voice="Polly.Joanna-Neural">One moment.</Say>
+				<Redirect method="POST">/voice/reply</Redirect>
 				</Response>
 				""";
 
@@ -62,6 +62,24 @@ class VoiceControllerTest {
 						.param("CallSid", "CA123")
 						.param("From", "+15551234567")
 						.param("SpeechResult", "What are your hours?"))
+				.andExpect(status().isOk())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
+				.andExpect(content().xml(twiml));
+	}
+
+	@Test
+	void replyReturnsConversationTwiml() throws Exception {
+		String twiml = """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<Response>
+				<Say voice="Polly.Joanna-Neural">We are open until six.</Say>
+				<Gather input="speech" action="/voice/respond" method="POST"/>
+				</Response>
+				""";
+
+		given(voiceTwiMLService.reply("CA123")).willReturn(twiml);
+
+		mockMvc.perform(post("/voice/reply").param("CallSid", "CA123"))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
 				.andExpect(content().xml(twiml));

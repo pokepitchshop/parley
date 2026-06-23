@@ -36,6 +36,9 @@ public final class AgentGuardrails {
 			Sorry, I'm having trouble thinking of an answer right now. Please try again in a moment.
 			""";
 
+	/** Spoken immediately while the LLM turn runs on a follow-up webhook (Twilio 15s limit). */
+	public static final String THINKING_ACK = "One moment.";
+
 	private AgentGuardrails() {
 	}
 
