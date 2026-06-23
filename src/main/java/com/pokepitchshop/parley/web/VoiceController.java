@@ -36,6 +36,11 @@ public class VoiceController {
 		return voiceTwiMLService.respond(callSid, fromNumber, speechResult);
 	}
 
+	@PostMapping(value = "/voice/reply", produces = MediaType.APPLICATION_XML_VALUE)
+	String reply(@RequestParam(value = "CallSid", required = false) String callSid) throws TwiMLException {
+		return voiceTwiMLService.reply(callSid);
+	}
+
 	@PostMapping("/voice/status")
 	ResponseEntity<Void> status(
 			@RequestParam(value = "CallSid", required = false) String callSid,
