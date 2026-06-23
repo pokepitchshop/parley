@@ -30,7 +30,7 @@ fi
 push_image_acr() {
 	echo "Building boot JAR locally..."
 	cd "$ROOT"
-	./gradlew bootJar --no-daemon
+	./gradlew clean bootJar --no-daemon
 
 	echo "Building ${IMAGE} in ACR (native linux/amd64)..."
 	az acr build -r "$ACR_NAME" -t "parley:${TAG}" -f "$ROOT/Dockerfile" "$ROOT"

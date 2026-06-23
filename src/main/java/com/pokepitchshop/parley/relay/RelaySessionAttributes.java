@@ -8,6 +8,8 @@ public final class RelaySessionAttributes {
 
 	public static final String SESSION_ID = "sessionId";
 
+	static final String GENERATION = "relayGeneration";
+
 	private RelaySessionAttributes() {
 	}
 }
