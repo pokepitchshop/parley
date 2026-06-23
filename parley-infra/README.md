@@ -12,29 +12,48 @@ Each layer is its own state (its own HCP workspace). The `app` layer reads `plat
 outputs via `terraform_remote_state`. Environments (dev/staging/prod) are the **same code** applied
 to different workspaces with different values — not separate folders.
 
-## Current Azure vs parley-infra (as of 2026-06-21 audit — POK-111)
+## Current Azure state (as of 2026-06-23 — POK-118)
 
-**Parley has not been applied yet.** No `parley-*` resource groups exist (greenfield confirmed).
-Re-run the live audit: `./scripts/audit-azure-subscription.sh` — full report in [`docs/azure-discovery-audit.md`](../docs/azure-discovery-audit.md).
+**Parley dev stack: applied and live.** Twilio voice webhook points at Container Apps (POK-94); ngrok is **local dev only** ([`docs/twilio-public-url.md`](../docs/twilio-public-url.md)).
 
-The subscription currently runs legacy **Oldman** workloads in the `PokePitchShop` resource group (`centralus`):
+Re-run the live audit anytime: `./scripts/audit-azure-subscription.sh` — full report in [`docs/azure-discovery-audit.md`](../docs/azure-discovery-audit.md).
 
-| Live resource | Type | SKU / notes | parley-infra equivalent |
+| Field | Value |
+|---|---|
+| **Applied** | 2026-06-23 (foundation → platform → app; POK-114) |
+| **Resource group** | `parley-dev-rg` (`eastus2`) |
+| **`app_url`** | `https://parley-dev-app.agreeablesmoke-7ebf43ac.eastus2.azurecontainerapps.io` |
+| **Voice webhook** | `{app_url}/voice` (POST) |
+| **Active revision** | `parley-dev-app--0000003` (Healthy) |
+
+### Parley resources (`parley-dev-rg`, `eastus2`)
+
+| Live resource | Type | Layer | Status |
 |---|---|---|---|
-| *(none yet)* | Resource group | — | `foundation/` → `parley-dev-rg` |
-| `identity-oldman` | User-assigned identity | — | `foundation/` → `parley-dev-id` |
-| `oldman` | Linux App Service | F1 Free plan | **Replaced by** `app/` Container App |
-| `plan-oldman` | App Service plan | F1 Free | **Not used** — ACA consumption billing |
-| *(removed)* | PostgreSQL Flexible | — | Was `intelligentoldmanbrain`; already deleted |
-| `pokepitchshophub` | Event Hubs | Standard (~$13/mo MTD) | **Not in Parley** |
-| `pokepitchstorage` | Storage account | Standard LRS | **Not in Parley** |
-| `ws-*` + `appinsights-oldman` | Log Analytics + App Insights | — | `platform/` Log Analytics only |
-| *(not deployed)* | ACR, Key Vault, Azure OpenAI, Container Apps | — | `platform/` + `app/` |
+| `parley-dev-rg` | Resource group | foundation | Applied |
+| `parley-dev-id` | User-assigned identity | foundation | Applied |
+| `parleydevacr` | Container Registry (Basic) | platform | Applied |
+| `parley-dev-kv` | Key Vault (Standard, RBAC) | platform | Applied |
+| `parley-dev-openai` | Azure OpenAI (gpt-4.1-mini) | platform | Applied |
+| `parley-dev-logs` | Log Analytics (0.5 GB/day cap) | platform | Applied |
+| `parley-dev-cae` | Container Apps Environment | platform | Applied |
+| `parley-dev-app` | Container App (0.5 vCPU / 1Gi) | app | Applied |
 
-**Pre-apply blockers:** `terraform login` + HCP workspaces (POK-112 — see `docs/hcp-terraform-bootstrap.md`); confirm all Azure providers Registered via `./scripts/bootstrap-hcp-terraform.sh`.
+### Legacy Oldman (`PokePitchShop`, `centralus`) — retired from production
 
-Parley is a **greenfield stack** in `eastus2` (OpenAI availability), separate from Oldman.
-Before first apply, register Container Apps: `az provider register -n Microsoft.App --wait`.
+Superseded by Parley on Azure. Resources **still present** pending teardown ([POK-117](https://linear.app/pokepitchshop/issue/POK-117)); do not route traffic here.
+
+| Live resource | Type | Status |
+|---|---|---|
+| `oldman` | Linux App Service (F1) | Retired — superseded by `parley-dev-app` |
+| `plan-oldman` | App Service plan (F1) | Retired |
+| `identity-oldman` | User-assigned identity | Retired |
+| `pokepitchshophub` | Event Hubs (Standard) | Retired — delete in POK-117 |
+| `pokepitchstorage` | Storage account (LRS) | Retired — delete in POK-117 |
+| `appinsights-oldman` / `ws-*` | App Insights + Log Analytics | Retired — delete or archive in POK-117 |
+| `intelligentoldmanbrain` | PostgreSQL Flexible | Already removed |
+
+**Bootstrap complete (POK-112).** HCP workspaces `parley-foundation`, `parley-platform`, `parley-app` are in use. Providers registered in `eastus2`.
 
 ## Cost model (cheap-by-default)
 
@@ -67,9 +86,20 @@ Manual checklist and HCP workspace details: [`docs/hcp-terraform-bootstrap.md`](
    Store secret *values* in Key Vault after platform apply; reference versionless secret IDs in workspace vars.
 6. `dev.tfvars` is created from `dev.tfvars.example` by the bootstrap script (gitignored).
 
-## Apply order (foundation -> platform -> app)
+## Apply order (foundation → platform → app)
 
-Validate first (POK-113): `./scripts/validate-parley-infra.sh`
+Validate: `./scripts/validate-parley-infra.sh`
+
+From the repo root (recommended — seeds Key Vault, pushes image, wires TF vars):
+
+```bash
+./scripts/apply-parley-infra.sh          # foundation + platform (once)
+./scripts/seed-parley-keyvault.sh        # after platform
+./scripts/push-parley-image.sh latest    # ACR build (linux/amd64)
+./scripts/apply-parley-app.sh            # app layer
+```
+
+Manual layer apply:
 
 ```
 cd foundation && terraform init && terraform apply -var-file=../environments/dev.tfvars
@@ -77,19 +107,34 @@ cd ../platform && terraform init && terraform apply -var-file=../environments/de
 cd ../app      && terraform init && terraform apply -var-file=../environments/dev.tfvars
 ```
 
+Full walkthrough: [`docs/azure-deploy.md`](../docs/azure-deploy.md).
+
 ## After the app applies
-`terraform output app_url` gives the public HTTPS base. Point Twilio's voice webhook to
-`<app_url>/voice` — that's POK-11, and it retires the ngrok step (POK-10).
 
-Step-by-step apply, image deploy, and Twilio cutover: [`docs/azure-deploy.md`](../docs/azure-deploy.md).
+```bash
+cd parley-infra/app && terraform output -raw app_url
+```
 
-## Deploy the app image (from the parley/ repo)
+Point Twilio's voice webhook to `<app_url>/voice` (POST):
+
+```bash
+./scripts/repoint-twilio-voice-webhook.sh "$(terraform output -raw app_url)"
 ```
-./gradlew bootBuildImage --imageName=<acr_login_server>/parley:latest
-az acr login --name <acr-name>
-docker push <acr_login_server>/parley:latest
+
+Production traffic uses the stable Azure URL above. ngrok is for **local dev only** — see [`docs/twilio-public-url.md`](../docs/twilio-public-url.md).
+
+## Deploy / roll the app image (from the parley/ repo)
+
+```bash
+./scripts/push-parley-image.sh latest    # default: az acr build (native linux/amd64)
+./scripts/deploy-parley-azure.sh latest  # push + apply app layer
 ```
-Then bump `var.image_tag` (or re-apply `app`) to roll a new revision.
+
+Or app layer only after a new image tag:
+
+```bash
+PARLEY_TF_AUTO_APPROVE=1 ./scripts/apply-parley-app.sh
+```
 
 ## Spring AI
 
