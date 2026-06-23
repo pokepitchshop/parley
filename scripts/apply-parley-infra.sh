@@ -4,6 +4,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/load-dotenv.sh"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/export-app-tfvars.sh"
 ENV="${PARLEY_INFRA_ENV:-dev}"
 TFVARS="$ROOT/parley-infra/environments/${ENV}.tfvars"
 AUTO="${PARLEY_TF_AUTO_APPROVE:-}"
@@ -14,10 +18,7 @@ if [[ ! -f "$TFVARS" ]]; then
 fi
 
 if [[ -f "$ROOT/.env" ]]; then
-	set -a
-	# shellcheck disable=SC1091
-	source "$ROOT/.env"
-	set +a
+	load_dotenv "$ROOT/.env"
 fi
 
 APPLY_FLAGS=(-var-file="$TFVARS" -input=false)
@@ -46,12 +47,12 @@ echo ""
 echo "=== Seeding Key Vault ==="
 "$ROOT/scripts/seed-parley-keyvault.sh"
 
-KV_URI=$(cd "$ROOT/parley-infra/platform" && terraform output -raw key_vault_uri)
-: "${TWILIO_ACCOUNT_SID:?Set TWILIO_ACCOUNT_SID in .env before app apply}"
+if ! az acr repository show-tags -n "$(cd "$ROOT/parley-infra/platform" && terraform output -raw acr_name)" \
+	--repository parley --query "[?@=='latest']" -o tsv 2>/dev/null | grep -q .; then
+	echo "WARN: parley:latest not in ACR yet — run ./scripts/push-parley-image.sh before app apply." >&2
+fi
 
-export TF_VAR_twilio_account_sid="$TWILIO_ACCOUNT_SID"
-export TF_VAR_twilio_token_secret_id="${KV_URI}secrets/twilio-auth-token"
-export TF_VAR_mongodb_uri_secret_id="${KV_URI}secrets/mongodb-uri"
+export_parley_app_tfvars "$ROOT"
 
 apply_layer app
 
