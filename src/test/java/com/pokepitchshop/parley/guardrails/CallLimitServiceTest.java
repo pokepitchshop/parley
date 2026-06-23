@@ -31,9 +31,7 @@ class CallLimitServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		voiceProperties = new VoiceProperties();
-		voiceProperties.setMaxTurnsPerCall(2);
-		voiceProperties.setMaxToolCallsPerCall(1);
+		voiceProperties = new VoiceProperties("POLLY_JOANNA_NEURAL", 3, 2, 1);
 		callLimitService = new CallLimitService(transcriptService, voiceProperties);
 	}
 
