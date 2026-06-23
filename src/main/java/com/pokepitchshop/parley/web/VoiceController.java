@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.pokepitchshop.parley.relay.ConversationRelayPaths;
+import com.pokepitchshop.parley.relay.RelayTwiMLService;
 import com.pokepitchshop.parley.transcript.CallSummaryService;
 import com.pokepitchshop.parley.voice.VoiceTwiMLService;
 import com.twilio.twiml.TwiMLException;
@@ -15,16 +17,27 @@ public class VoiceController {
 
 	private final VoiceTwiMLService voiceTwiMLService;
 
+	private final RelayTwiMLService relayTwiMLService;
+
 	private final CallSummaryService callSummaryService;
 
-	public VoiceController(VoiceTwiMLService voiceTwiMLService, CallSummaryService callSummaryService) {
+	public VoiceController(
+			VoiceTwiMLService voiceTwiMLService,
+			RelayTwiMLService relayTwiMLService,
+			CallSummaryService callSummaryService) {
 		this.voiceTwiMLService = voiceTwiMLService;
+		this.relayTwiMLService = relayTwiMLService;
 		this.callSummaryService = callSummaryService;
 	}
 
 	@PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
 	String voice(@RequestParam(value = "From", required = false) String fromNumber) throws TwiMLException {
 		return voiceTwiMLService.openingResponse(fromNumber);
+	}
+
+	@PostMapping(value = ConversationRelayPaths.RELAY_TWIML_PATH, produces = MediaType.APPLICATION_XML_VALUE)
+	String relay(@RequestParam(value = "From", required = false) String fromNumber) throws TwiMLException {
+		return relayTwiMLService.conversationRelayConnect(fromNumber);
 	}
 
 	@PostMapping(value = "/voice/respond", produces = MediaType.APPLICATION_XML_VALUE)

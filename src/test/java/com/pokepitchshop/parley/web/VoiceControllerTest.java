@@ -8,15 +8,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.pokepitchshop.parley.relay.RelayTwiMLService;
 import com.pokepitchshop.parley.transcript.CallSummaryService;
+import com.pokepitchshop.parley.twilio.TwilioSignatureFilter;
 import com.pokepitchshop.parley.voice.VoiceTwiMLService;
 
-@WebMvcTest(VoiceController.class)
+@WebMvcTest(
+		controllers = VoiceController.class,
+		excludeFilters = @ComponentScan.Filter(
+				type = FilterType.ASSIGNABLE_TYPE,
+				classes = TwilioSignatureFilter.class))
+@AutoConfigureMockMvc(addFilters = false)
 class VoiceControllerTest {
 
 	@Autowired
@@ -24,6 +34,9 @@ class VoiceControllerTest {
 
 	@MockitoBean
 	private VoiceTwiMLService voiceTwiMLService;
+
+	@MockitoBean
+	private RelayTwiMLService relayTwiMLService;
 
 	@MockitoBean
 	private CallSummaryService callSummaryService;
@@ -41,6 +54,25 @@ class VoiceControllerTest {
 		given(voiceTwiMLService.openingResponse(null)).willReturn(twiml);
 
 		mockMvc.perform(post("/voice"))
+				.andExpect(status().isOk())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
+				.andExpect(content().xml(twiml));
+	}
+
+	@Test
+	void relayReturnsConversationRelayTwiml() throws Exception {
+		String twiml = """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<Response>
+				<Connect>
+				<ConversationRelay url="wss://parley.example.com/relay" welcomeGreeting="Hi, you're through to Poke Pitch Shop. What can I help you with?"/>
+				</Connect>
+				</Response>
+				""";
+
+		given(relayTwiMLService.conversationRelayConnect(null)).willReturn(twiml);
+
+		mockMvc.perform(post("/voice/relay"))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
 				.andExpect(content().xml(twiml));
