@@ -23,7 +23,8 @@ Re-run the live audit anytime: `./scripts/audit-azure-subscription.sh` — full 
 | **Applied** | 2026-06-23 (foundation → platform → app; POK-114) |
 | **Resource group** | `parley-dev-rg` (`eastus2`) |
 | **`app_url`** | `https://parley-dev-app.agreeablesmoke-7ebf43ac.eastus2.azurecontainerapps.io` |
-| **Voice webhook** | `{app_url}/voice` (POST) |
+| **Voice webhook** | `{app_url}/voice/relay` (POST) — ConversationRelay; see [`docs/conversation-relay.md`](../docs/conversation-relay.md) |
+| **`PUBLIC_BASE_URL`** | Set on Container App to `app_url` (required for relay TwiML + signatures) |
 | **Active revision** | `parley-dev-app--0000003` (Healthy) |
 
 ### Parley resources (`parley-dev-rg`, `eastus2`)
@@ -115,11 +116,16 @@ Full walkthrough: [`docs/azure-deploy.md`](../docs/azure-deploy.md).
 cd parley-infra/app && terraform output -raw app_url
 ```
 
-Point Twilio's voice webhook to `<app_url>/voice` (POST):
+Point Twilio's voice webhook to `<app_url>/voice/relay` (POST) for ConversationRelay — see [`docs/conversation-relay.md`](../docs/conversation-relay.md).
+
+Confirm `PUBLIC_BASE_URL` is on the Container App (set by Terraform in `app/main.tf`):
 
 ```bash
-./scripts/repoint-twilio-voice-webhook.sh "$(terraform output -raw app_url)"
+az containerapp show --name parley-dev-app --resource-group parley-dev-rg \
+  --query "properties.template.containers[0].env[?name=='PUBLIC_BASE_URL']" -o json
 ```
+
+Turn-based fallback: `<app_url>/voice` via `./scripts/repoint-twilio-voice-webhook.sh "$(terraform output -raw app_url)"`.
 
 Production traffic uses the stable Azure URL above. ngrok is for **local dev only** — see [`docs/twilio-public-url.md`](../docs/twilio-public-url.md).
 

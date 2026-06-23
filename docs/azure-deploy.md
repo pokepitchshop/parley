@@ -162,10 +162,21 @@ export APP_URL=$(cd parley-infra/app && terraform output -raw app_url)
 
 Expect `/health` → `{"status":"ok"}` and `POST /voice` → valid TwiML.
 
-## 6. Cut Twilio over (retire ngrok)
+For **ConversationRelay** (`/voice/relay`), also confirm `PUBLIC_BASE_URL` is set and signed TwiML works — see [conversation-relay.md](conversation-relay.md).
 
 ```bash
-export PUBLIC_BASE_URL="$APP_URL"
+az containerapp show --name parley-dev-app --resource-group parley-dev-rg \
+  --query "properties.template.containers[0].env[?name=='PUBLIC_BASE_URL']" -o json
+```
+
+## 6. Cut Twilio over (retire ngrok)
+
+**ConversationRelay (real-time voice, POK-28):** set the number webhook to `{app_url}/voice/relay` (POST). See [conversation-relay.md](conversation-relay.md).
+
+**Turn-based fallback:** `{app_url}/voice` (POST):
+
+```bash
+export PUBLIC_BASE_URL="$APP_URL"   # base only — no /voice suffix
 export TWILIO_ACCOUNT_SID=...
 export TWILIO_AUTH_TOKEN=...
 export TWILIO_FROM_NUMBER=...
@@ -196,5 +207,8 @@ See [llm-provider.md](llm-provider.md) for the full decision (POK-110).
 | App apply: KV secret fetch failed | Run `./scripts/seed-parley-keyvault.sh` — needs **Key Vault Secrets Officer** on `parley-dev-kv`; then `./scripts/verify-parley-infra-ready.sh` |
 | `.env` parse error in scripts | MongoDB URI contains `&` — quote the value in `.env` or use `scripts/lib/load-dotenv.sh` |
 | `/voice` 502/504 on first call | Cold start; wait and retry, or set `min_replicas = 1` |
+| Twilio “application error” on `/voice/relay` | Usually **500** — missing `PUBLIC_BASE_URL`; see [conversation-relay.md](conversation-relay.md) |
+| `POST /voice/relay` returns 403 | Expected without `X-Twilio-Signature`; Twilio sends signed requests on real calls |
+| Deploy wiped `PUBLIC_BASE_URL` | Fixed in `parley-infra/app/main.tf`; re-run `./scripts/apply-parley-app.sh` |
 | LLM errors in Azure | Managed identity **Cognitive Services OpenAI User** role, `AZURE_CLIENT_ID` set, deployment `gpt-4.1-mini` — see [llm-provider.md](llm-provider.md) |
 | Transcripts not saving | Key Vault `mongodb-uri` secret and network access from Container Apps egress |

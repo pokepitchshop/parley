@@ -118,6 +118,10 @@ resource "azurerm_container_app" "parley" {
         name        = "SPRING_DATA_MONGODB_URI"
         secret_name = "mongodb-uri"
       }
+      env {
+        name  = "PUBLIC_BASE_URL"
+        value = "https://${azurerm_container_app.parley.ingress[0].fqdn}"
+      }
 
       liveness_probe {
         transport               = "HTTP"
