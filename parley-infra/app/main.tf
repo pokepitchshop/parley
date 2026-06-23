@@ -124,6 +124,7 @@ resource "azurerm_container_app" "parley" {
         port                    = 8080
         path                    = "/health"
         interval_seconds        = 10
+        initial_delay           = 60
         failure_count_threshold = 3
       }
 
@@ -132,6 +133,7 @@ resource "azurerm_container_app" "parley" {
         port                    = 8080
         path                    = "/health"
         interval_seconds        = 5
+        initial_delay           = 30
         success_count_threshold = 1
       }
     }

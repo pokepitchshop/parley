@@ -12,7 +12,7 @@ For Terraform layer details and cost discipline, see [`parley-infra/README.md`](
 - Run `./scripts/bootstrap-hcp-terraform.sh` (POK-112) — see [`docs/hcp-terraform-bootstrap.md`](hcp-terraform-bootstrap.md)
 - Run `./scripts/validate-parley-infra.sh` (POK-113) before apply
 - [Terraform CLI](https://developer.hashicorp.com/terraform/install) + HCP Terraform access to org `pokepitchshop`
-- Docker (for `bootBuildImage` push to ACR)
+- Docker (optional — only for `PARLEY_IMAGE_BUILD=local`; default `az acr build` needs `az` + Gradle only)
 - Three HCP workspaces: `parley-foundation`, `parley-platform`, `parley-app`
 - MongoDB connection string (Atlas free tier is fine for dev) stored in Key Vault before the app apply
 
@@ -93,11 +93,15 @@ Azure OpenAI uses **keyless** managed-identity auth — no `openai-key` secret o
 
 **First-time app apply:** push the container image to ACR **before** applying the app layer (otherwise Azure returns `MANIFEST_UNKNOWN` for `parley:latest`).
 
+`push-parley-image.sh` defaults to **`az acr build`** — the image is built on Azure’s native **linux/amd64** builders (reliable from Apple Silicon Macs). Requires `az login` and `./gradlew bootJar`; no local Docker needed.
+
 ```bash
 chmod +x scripts/push-parley-image.sh scripts/apply-parley-infra.sh scripts/apply-parley-app.sh
 ./scripts/push-parley-image.sh latest
 PARLEY_TF_AUTO_APPROVE=1 ./scripts/apply-parley-infra.sh
 ```
+
+Local Paketo build (`PARLEY_IMAGE_BUILD=local`) is available for amd64 Linux hosts that prefer `bootBuildImage` + `docker push`.
 
 The apply script validates (POK-113), applies foundation and platform, seeds Key Vault from `.env`, exports `TF_VAR_*` (Key Vault **secret IDs**, not secret values), then applies app.
 
@@ -145,7 +149,7 @@ chmod +x scripts/deploy-parley-azure.sh
 ./scripts/deploy-parley-azure.sh latest
 ```
 
-The script builds, pushes to ACR, exports `TF_VAR_*` from `.env`, and re-applies the app layer with the new `image_tag`. Do **not** paste Twilio tokens or Mongo URIs into Terraform prompts — those are Key Vault secret **values**; Terraform needs the Key Vault secret **ID URIs** (the scripts set these automatically).
+The script runs `./scripts/push-parley-image.sh` (default: `az acr build` on Azure’s amd64 builders), exports `TF_VAR_*` from `.env`, and re-applies the app layer with the new `image_tag`. Do **not** paste Twilio tokens or Mongo URIs into Terraform prompts — those are Key Vault secret **values**; Terraform needs the Key Vault secret **ID URIs** (the scripts set these automatically).
 
 **Note:** With `min_replicas = 0`, the first request after idle triggers a cold start (JVM + Spring). Twilio may retry; for prod, consider `min_replicas = 1`.
 
@@ -185,6 +189,8 @@ See [llm-provider.md](llm-provider.md) for the full decision (POK-110).
 |---|---|
 | Container App won't start | `az containerapp logs show` — missing Key Vault secret or bad Mongo URI |
 | App apply: `MANIFEST_UNKNOWN` | Run `./scripts/push-parley-image.sh latest` before app apply |
+| Site hangs / 504; logs: `exec format error` | Rebuild with default `az acr build`: `./scripts/push-parley-image.sh latest` then `./scripts/deploy-parley-azure.sh latest` |
+| App apply: `linux/amd64 but found linux/arm64` | Same — use default `az acr build` (not `PARLEY_IMAGE_BUILD=local` on Mac) |
 | App apply: resource already exists | Delete failed app: `az containerapp delete -g parley-dev-rg -n parley-dev-app --yes`, then re-apply |
 | App apply: `expected 2 or 3 path segments` | You pasted secret **values** into Terraform — use scripts (they export Key Vault secret **ID URIs**) |
 | App apply: KV secret fetch failed | Run `./scripts/seed-parley-keyvault.sh` — needs **Key Vault Secrets Officer** on `parley-dev-kv`; then `./scripts/verify-parley-infra-ready.sh` |

@@ -1,0 +1,17 @@
+.git
+.gradle
+.cursor
+.idea
+parley-infra
+docs
+scripts
+build/classes
+build/generated
+build/kotlin
+build/tmp
+build/reports
+build/test-results
+build/bootBuildImage
+build/native
+.env
+.env.*

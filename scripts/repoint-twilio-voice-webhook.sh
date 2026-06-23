@@ -14,10 +14,19 @@ fi
 : "${TWILIO_ACCOUNT_SID:?Set TWILIO_ACCOUNT_SID}"
 : "${TWILIO_AUTH_TOKEN:?Set TWILIO_AUTH_TOKEN}"
 : "${TWILIO_FROM_NUMBER:?Set TWILIO_FROM_NUMBER (E.164, e.g. +14155551234)}"
-: "${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL (ngrok or hosted app_url, no trailing slash)}"
+: "${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL (hosted app_url or ngrok base, no trailing slash, no /voice suffix)}"
 
-VOICE_URL="${PUBLIC_BASE_URL%/}/voice"
-STATUS_URL="${PUBLIC_BASE_URL%/}/voice/status"
+# Optional override: ./repoint-twilio-voice-webhook.sh https://parley-dev-app….azurecontainerapps.io
+if [[ -n "${1:-}" ]]; then
+	PUBLIC_BASE_URL="${1%/}"
+fi
+# Strip accidental /voice suffix so we don't produce …/voice/voice
+while [[ "${PUBLIC_BASE_URL}" == */voice ]]; do
+	PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/voice}"
+done
+
+VOICE_URL="${PUBLIC_BASE_URL}/voice"
+STATUS_URL="${PUBLIC_BASE_URL}/voice/status"
 API="https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers.json"
 
 echo "Looking up ${TWILIO_FROM_NUMBER}..."
