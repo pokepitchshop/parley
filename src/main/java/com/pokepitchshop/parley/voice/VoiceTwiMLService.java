@@ -1,11 +1,7 @@
 package com.pokepitchshop.parley.voice;
 
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
-import com.pokepitchshop.parley.caller.CallerContext;
 import com.pokepitchshop.parley.caller.CallerService;
 import com.pokepitchshop.parley.guardrails.AgentGuardrails;
 import com.pokepitchshop.parley.guardrails.CallLimitService;
@@ -33,8 +29,6 @@ public class VoiceTwiMLService {
 
 	static final String REPLY_PATH = "/voice/reply";
 
-	private final ChatClient chatClient;
-
 	private final VoiceProperties voiceProperties;
 
 	private final TranscriptService transcriptService;
@@ -51,8 +45,9 @@ public class VoiceTwiMLService {
 
 	private final PendingTurnStore pendingTurnStore;
 
+	private final VoiceReplyService voiceReplyService;
+
 	public VoiceTwiMLService(
-			ChatClient chatClient,
 			VoiceProperties voiceProperties,
 			TranscriptService transcriptService,
 			CallerService callerService,
@@ -60,8 +55,8 @@ public class VoiceTwiMLService {
 			OutOfScopeDetector outOfScopeDetector,
 			ToolTurnDetector toolTurnDetector,
 			ToolCallGuardrail toolCallGuardrail,
-			PendingTurnStore pendingTurnStore) {
-		this.chatClient = chatClient;
+			PendingTurnStore pendingTurnStore,
+			VoiceReplyService voiceReplyService) {
 		this.voiceProperties = voiceProperties;
 		this.transcriptService = transcriptService;
 		this.callerService = callerService;
@@ -70,6 +65,7 @@ public class VoiceTwiMLService {
 		this.toolTurnDetector = toolTurnDetector;
 		this.toolCallGuardrail = toolCallGuardrail;
 		this.pendingTurnStore = pendingTurnStore;
+		this.voiceReplyService = voiceReplyService;
 	}
 
 	public String openingResponse(String fromNumber) throws TwiMLException {
@@ -120,42 +116,24 @@ public class VoiceTwiMLService {
 	}
 
 	private String generateReply(String callSid, String fromNumber, String speechResult) throws TwiMLException {
-		CallerContext callerContext = callerService.contextFor(fromNumber);
-		try {
-			var prompt = chatClient.prompt()
-					.system(callerContext.systemPromptSnippet());
-			if (toolTurnDetector.looksLikeToolAction(speechResult)) {
-				prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
-			}
-			String reply = prompt
-					.user(speechResult)
-					.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
-					.call()
-					.content();
-			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
-			return conversationTurnResponse(reply);
-		}
-		catch (DataAccessException ex) {
-			log.error("Transcript save failed for CallSid={}", callSid, ex);
-			return conversationTurnResponse(AgentGuardrails.LLM_UNAVAILABLE.trim());
-		}
-		catch (RuntimeException ex) {
-			log.error("LLM turn failed for CallSid={}", callSid, ex);
-			return conversationTurnResponse(AgentGuardrails.LLM_UNAVAILABLE.trim());
-		}
+		return conversationTurnResponse(voiceReplyService.replyToUtterance(callSid, fromNumber, speechResult));
 	}
 
 	public String acknowledgeAndRedirectToReply() throws TwiMLException {
+		
 		Say say = new Say.Builder(AgentGuardrails.THINKING_ACK.trim())
 				.voice(sayVoice())
 				.build();
+
 		Redirect redirect = new Redirect.Builder(REPLY_PATH)
 				.method(HttpMethod.POST)
 				.build();
+
 		VoiceResponse response = new VoiceResponse.Builder()
 				.say(say)
 				.redirect(redirect)
 				.build();
+				
 		return response.toXml();
 	}
 

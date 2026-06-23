@@ -1,5 +1,10 @@
 package com.pokepitchshop.parley.relay;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
@@ -8,6 +13,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pokepitchshop.parley.voice.VoiceReplyService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -15,11 +21,23 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class ConversationRelayHandler extends TextWebSocketHandler {
 
-	static final String ECHO_PREFIX = "You said: ";
+	private final VoiceReplyService voiceReplyService;
 
-	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final ObjectMapper objectMapper;
 
-	public ConversationRelayHandler() {
+	private final Executor replyExecutor;
+
+	@Autowired
+	public ConversationRelayHandler(VoiceReplyService voiceReplyService) {
+		this.voiceReplyService = voiceReplyService;
+		this.replyExecutor = Executors.newVirtualThreadPerTaskExecutor();
+		this.objectMapper = new ObjectMapper();
+	}
+
+	ConversationRelayHandler(VoiceReplyService voiceReplyService, Executor replyExecutor) {
+		this.voiceReplyService = voiceReplyService;
+		this.replyExecutor = replyExecutor;
+		this.objectMapper = new ObjectMapper();
 	}
 
 	@Override
@@ -44,6 +62,7 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+		RelaySessionState.invalidateInFlight(session);
 		String callSid = (String) session.getAttributes().get(RelaySessionAttributes.CALL_SID);
 		log.info("ConversationRelay WebSocket closed callSid={} sessionId={} status={}",
 				callSid, session.getId(), status);
@@ -53,11 +72,12 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 		session.getAttributes().put(RelaySessionAttributes.CALL_SID, inbound.callSid());
 		session.getAttributes().put(RelaySessionAttributes.FROM, inbound.from());
 		session.getAttributes().put(RelaySessionAttributes.SESSION_ID, inbound.sessionId());
+		RelaySessionState.generationCounter(session);
 		log.info("ConversationRelay setup callSid={} from={} sessionId={}",
 				inbound.callSid(), inbound.from(), inbound.sessionId());
 	}
 
-	private void handlePrompt(WebSocketSession session, RelayInboundMessage inbound) throws Exception {
+	private void handlePrompt(WebSocketSession session, RelayInboundMessage inbound) {
 		if (!Boolean.TRUE.equals(inbound.last())) {
 			return;
 		}
@@ -65,11 +85,35 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 			return;
 		}
 		String callSid = (String) session.getAttributes().get(RelaySessionAttributes.CALL_SID);
-		log.info("ConversationRelay prompt callSid={} utterance={}", callSid, inbound.voicePrompt());
-		sendText(session, ECHO_PREFIX + inbound.voicePrompt().trim());
+		String from = (String) session.getAttributes().get(RelaySessionAttributes.FROM);
+		String utterance = inbound.voicePrompt().trim();
+		int generation = RelaySessionState.nextGeneration(session);
+		log.info("ConversationRelay prompt callSid={} utterance={}", callSid, utterance);
+
+		CompletableFuture.supplyAsync(
+				() -> voiceReplyService.replyToUtterance(callSid, from, utterance),
+				replyExecutor)
+				.whenComplete((reply, error) -> {
+					if (error != null) {
+						log.error("ConversationRelay reply failed callSid={}", callSid, error);
+						return;
+					}
+					if (generation != RelaySessionState.currentGeneration(session)) {
+						log.debug("ConversationRelay discarding stale reply callSid={} generation={}",
+								callSid, generation);
+						return;
+					}
+					try {
+						sendText(session, reply);
+					}
+					catch (Exception ex) {
+						log.error("ConversationRelay send failed callSid={}", callSid, ex);
+					}
+				});
 	}
 
 	private void handleInterrupt(WebSocketSession session, RelayInboundMessage inbound) {
+		RelaySessionState.invalidateInFlight(session);
 		String callSid = (String) session.getAttributes().get(RelaySessionAttributes.CALL_SID);
 		log.info("ConversationRelay interrupt callSid={} utteranceUntilInterrupt={} durationMs={}",
 				callSid, inbound.utteranceUntilInterrupt(), inbound.durationUntilInterruptMs());
@@ -77,6 +121,10 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 
 	private void sendText(WebSocketSession session, String spokenText) throws Exception {
 		RelayOutboundMessage outbound = RelayOutboundMessage.text(spokenText, true);
-		session.sendMessage(new TextMessage(objectMapper.writeValueAsString(outbound)));
+		synchronized (session) {
+			if (session.isOpen()) {
+				session.sendMessage(new TextMessage(objectMapper.writeValueAsString(outbound)));
+			}
+		}
 	}
 }
