@@ -7,6 +7,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -26,6 +28,8 @@ import com.pokepitchshop.parley.guardrails.ToolCallGuardrail;
 import com.pokepitchshop.parley.guardrails.ToolTurnDetector;
 import com.pokepitchshop.parley.transcript.TranscriptService;
 
+import reactor.core.publisher.Flux;
+
 @ExtendWith(MockitoExtension.class)
 class VoiceReplyServiceTest {
 
@@ -39,6 +43,9 @@ class VoiceReplyServiceTest {
 
 	@Mock
 	private ChatClient.CallResponseSpec responseSpec;
+
+	@Mock
+	private ChatClient.StreamResponseSpec streamResponseSpec;
 
 	@Mock
 	private TranscriptService transcriptService;
@@ -108,6 +115,38 @@ class VoiceReplyServiceTest {
 
 		assertThat(reply).contains("having trouble thinking");
 		verify(transcriptService, never()).appendTurn(anyString(), anyString(), anyString(), anyString());
+	}
+
+	@Test
+	void streamReplyToUtteranceEmitsSentenceChunks() {
+		CallerContext context = CallerContext.anonymous();
+		List<String> chunks = new ArrayList<>();
+		List<Boolean> lastFlags = new ArrayList<>();
+		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
+		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(Optional.empty());
+		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
+		given(callerService.contextFor("+15551234567")).willReturn(context);
+		given(chatClient.prompt()).willReturn(requestSpec);
+		given(requestSpec.system(anyString())).willReturn(requestSpec);
+		given(requestSpec.user(anyString())).willReturn(requestSpec);
+		given(requestSpec.advisors(any(Consumer.class))).willReturn(requestSpec);
+		given(requestSpec.stream()).willReturn(streamResponseSpec);
+		given(streamResponseSpec.content()).willReturn(Flux.just("We are open. ", "We close at eight."));
+
+		service.streamReplyToUtterance(
+				CALL_SID,
+				"+15551234567",
+				"What are your hours?",
+				(text, last) -> {
+					chunks.add(text);
+					lastFlags.add(last);
+					return true;
+				});
+
+		assertThat(chunks).containsExactly("We are open.", "We close at eight.");
+		assertThat(lastFlags).containsExactly(false, true);
+		verify(transcriptService).appendTurn(
+				CALL_SID, "+15551234567", "What are your hours?", "We are open. We close at eight.");
 	}
 
 	@Test

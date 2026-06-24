@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -23,6 +25,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pokepitchshop.parley.voice.VoiceReplyChunkConsumer;
 import com.pokepitchshop.parley.voice.VoiceReplyService;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,45 +69,50 @@ class ConversationRelayHandlerTest {
 	}
 
 	@Test
-	void promptRepliesWithAgentAnswer() throws Exception {
+	void promptStreamsAgentAnswerChunks() throws Exception {
 		when(session.getAttributes()).thenReturn(new HashMap<>(Map.of(
 				RelaySessionAttributes.CALL_SID, "CA123",
 				RelaySessionAttributes.FROM, "+15551234567")));
 		when(session.isOpen()).thenReturn(true);
-		given(voiceReplyService.replyToUtterance("CA123", "+15551234567", "What are your hours?"))
-				.willReturn("We are open until six.");
+		doAnswer(invocation -> {
+			VoiceReplyChunkConsumer consumer = invocation.getArgument(3);
+			consumer.onChunk("We are open.", false);
+			consumer.onChunk("We close at eight.", true);
+			return null;
+		}).when(voiceReplyService)
+				.streamReplyToUtterance(eq("CA123"), eq("+15551234567"), eq("What are your hours?"), any());
 
-		String payload = """
+		handler.handleTextMessage(session, new TextMessage("""
 				{
 				  "type": "prompt",
 				  "voicePrompt": "What are your hours?",
 				  "last": true
 				}
-				""";
-
-		handler.handleTextMessage(session, new TextMessage(payload));
+				"""));
 
 		ArgumentCaptor<TextMessage> captor = forClass(TextMessage.class);
-		verify(session).sendMessage(captor.capture());
-		RelayOutboundMessage outbound = objectMapper.readValue(captor.getValue().getPayload(), RelayOutboundMessage.class);
-		assertThat(outbound.type()).isEqualTo("text");
-		assertThat(outbound.token()).isEqualTo("We are open until six.");
-		assertThat(outbound.lastToken()).isTrue();
+		verify(session, org.mockito.Mockito.times(2)).sendMessage(captor.capture());
+		List<RelayOutboundMessage> outbound = new ArrayList<>();
+		for (TextMessage message : captor.getAllValues()) {
+			outbound.add(objectMapper.readValue(message.getPayload(), RelayOutboundMessage.class));
+		}
+		assertThat(outbound.get(0).token()).isEqualTo("We are open.");
+		assertThat(outbound.get(0).lastToken()).isFalse();
+		assertThat(outbound.get(1).token()).isEqualTo("We close at eight.");
+		assertThat(outbound.get(1).lastToken()).isTrue();
 	}
 
 	@Test
 	void partialPromptDoesNotReply() throws Exception {
-		String payload = """
+		handler.handleTextMessage(session, new TextMessage("""
 				{
 				  "type": "prompt",
 				  "voicePrompt": "What are",
 				  "last": false
 				}
-				""";
+				"""));
 
-		handler.handleTextMessage(session, new TextMessage(payload));
-
-		verify(voiceReplyService, never()).replyToUtterance(any(), any(), any());
+		verify(voiceReplyService, never()).streamReplyToUtterance(any(), any(), any(), any());
 		verify(session, never()).sendMessage(any());
 	}
 
@@ -113,17 +121,19 @@ class ConversationRelayHandlerTest {
 		when(session.getAttributes()).thenReturn(new HashMap<>(Map.of(
 				RelaySessionAttributes.CALL_SID, "CA123",
 				RelaySessionAttributes.FROM, "+15551234567")));
-		given(voiceReplyService.replyToUtterance(eq("CA123"), eq("+15551234567"), any()))
-				.willAnswer(invocation -> {
-					handler.handleTextMessage(session, new TextMessage("""
-							{
-							  "type": "interrupt",
-							  "utteranceUntilInterrupt": "We are open",
-							  "durationUntilInterruptMs": 400
-							}
-							"""));
-					return "We are open until six.";
-				});
+		doAnswer(invocation -> {
+			VoiceReplyChunkConsumer consumer = invocation.getArgument(3);
+			handler.handleTextMessage(session, new TextMessage("""
+					{
+					  "type": "interrupt",
+					  "utteranceUntilInterrupt": "We are open",
+					  "durationUntilInterruptMs": 400
+					}
+					"""));
+			consumer.onChunk("We are open until six.", true);
+			return null;
+		}).when(voiceReplyService)
+				.streamReplyToUtterance(eq("CA123"), eq("+15551234567"), any(), any());
 
 		handler.handleTextMessage(session, new TextMessage("""
 				{

@@ -11,8 +11,8 @@ Inbound call
   → Twilio POST /voice/relay (TwiML webhook)
   → Parley returns <Connect><ConversationRelay url="wss://…/relay" …/></Connect>
   → Twilio WSS → /relay (ConversationRelayHandler)
-  → VoiceReplyService (LLM + guardrails + ChatMemory)
-  → text tokens back to Twilio → TTS to caller
+  → VoiceReplyService.streamReplyToUtterance (streaming ChatClient + guardrails)
+  → sentence-chunked `text` tokens back to Twilio → TTS starts early
 ```
 
 ## Required configuration
