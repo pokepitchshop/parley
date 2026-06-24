@@ -20,6 +20,20 @@ public record ParleyProperties(@DefaultValue PublicUrl publicUrl) {
 	}
 
 	public String publicBaseUrlOrNull() {
-		return publicUrl.isConfigured() ? publicUrl.base().trim() : null;
+		if (!publicUrl.isConfigured()) {
+			return null;
+		}
+		String base = stripTrailingSlash(publicUrl.base().trim());
+		while (base.endsWith("/voice")) {
+			base = stripTrailingSlash(base.substring(0, base.length() - "/voice".length()));
+		}
+		return base;
+	}
+
+	private static String stripTrailingSlash(String value) {
+		while (value.endsWith("/")) {
+			value = value.substring(0, value.length() - 1);
+		}
+		return value;
 	}
 }
