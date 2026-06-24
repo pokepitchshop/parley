@@ -33,6 +33,15 @@ class TwilioSignatureValidatorTest {
 	}
 
 	@Test
+	void stripsVoiceSuffixFromConfiguredPublicBaseUrl() {
+		var validator = validator(AUTH_TOKEN, "https://parley.example.com/voice/");
+
+		assertThat(validator.buildHttpUrl(request("/voice/relay")))
+				.isEqualTo("https://parley.example.com/voice/relay");
+		assertThat(validator.relayWebSocketUrl()).isEqualTo("wss://parley.example.com/relay");
+	}
+
+	@Test
 	void buildsWebSocketUrlFromConfiguredPublicBaseUrl() {
 		var validator = validator(AUTH_TOKEN, "https://parley.example.com");
 

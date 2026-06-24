@@ -138,9 +138,57 @@ Then dial your Twilio number and watch the ngrok inspector at http://127.0.0.1:4
 
 For Azure Container Apps, use `terraform output app_url` from [`parley-infra/`](../parley-infra/README.md) after POK-25 apply. Point Twilio to `{app_url}/voice` instead of ngrok — see POK-11.
 
+## Signature validation (POK-13)
+
+Twilio signs every inbound request with `X-Twilio-Signature`. Parley validates that header before handling voice traffic.
+
+| Surface | Path | Behavior |
+|---------|------|----------|
+| HTTP webhooks | `/voice/**` | `TwilioSignatureFilter` → **403** on bad/missing signature |
+| ConversationRelay WSS | `/relay` | `TwilioWebSocketHandshakeInterceptor` → **403** on bad/missing signature |
+
+Validation is **enabled when `TWILIO_AUTH_TOKEN` is set** (local `.env` or Azure Key Vault). With an empty token (e.g. some unit tests), validation is skipped.
+
+### `PUBLIC_BASE_URL` and signatures
+
+Twilio signs the **public** URL Twilio called — not `http://localhost:8080` behind ngrok or Container Apps ingress.
+
+Set `PUBLIC_BASE_URL` to the base host only:
+
+```bash
+# correct
+PUBLIC_BASE_URL=https://abc123.ngrok-free.app
+
+# wrong — breaks HTTP and WSS signature checks
+PUBLIC_BASE_URL=https://abc123.ngrok-free.app/voice
+```
+
+Parley strips a trailing `/voice` (and trailing slashes) from `PUBLIC_BASE_URL` as a safety net, but configure the base URL correctly anyway. See [conversation-relay.md](conversation-relay.md) for relay-specific checks.
+
+### Verify locally
+
+With `TWILIO_AUTH_TOKEN` in `.env`:
+
+```bash
+source scripts/lib/load-dotenv.sh && load_dotenv .env
+
+# unsigned → 403 (expected)
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "$PUBLIC_BASE_URL/voice"
+
+# signed → 200 + TwiML
+URL="${PUBLIC_BASE_URL}/voice"
+SIG=$(python3 -c "
+import base64, hashlib, hmac, os
+t = os.environ['TWILIO_AUTH_TOKEN']
+print(base64.b64encode(hmac.new(t.encode(), '$URL'.encode(), hashlib.sha1).digest()).decode())
+")
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "$URL" -H "X-Twilio-Signature: $SIG"
+```
+
+For ConversationRelay (`/voice/relay` + WSS `/relay`), use the signed curl example in [conversation-relay.md](conversation-relay.md).
+
 ## Notes
 
-- **Signature validation (POK-13):** Twilio signs the *public* URL. Behind ngrok or a reverse proxy, validators must reconstruct the external `https://` URL, not `http://localhost:8080`.
 - **Retire Retell (POK-11 / POK-81):** Remove the number from `retellaTrunk` (or clear `trunk_sid`) so inbound calls use the webhook, not `sip.retellai.com`.
 
 ## E2E checklist (First Call)
