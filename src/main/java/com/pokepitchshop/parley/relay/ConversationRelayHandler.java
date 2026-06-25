@@ -63,6 +63,12 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
 		RelaySessionState.invalidateInFlight(session);
+		RelayTurnLatency latency = RelaySessionState.currentTurnLatency(session);
+		if (latency != null) {
+			latency.markInterrupted();
+			latency.logTurn();
+			RelaySessionState.clearCurrentTurnLatency(session);
+		}
 		String callSid = (String) session.getAttributes().get(RelaySessionAttributes.CALL_SID);
 		log.info("ConversationRelay WebSocket closed callSid={} sessionId={} status={}",
 				callSid, session.getId(), status);
@@ -73,12 +79,14 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 		session.getAttributes().put(RelaySessionAttributes.FROM, inbound.from());
 		session.getAttributes().put(RelaySessionAttributes.SESSION_ID, inbound.sessionId());
 		RelaySessionState.generationCounter(session);
+		RelaySessionState.turnCounter(session);
 		log.info("ConversationRelay setup callSid={} from={} sessionId={}",
 				inbound.callSid(), inbound.from(), inbound.sessionId());
 	}
 
 	private void handlePrompt(WebSocketSession session, RelayInboundMessage inbound) {
 		if (!Boolean.TRUE.equals(inbound.last())) {
+			RelaySessionState.beginSttTiming(session);
 			return;
 		}
 		if (!StringUtils.hasText(inbound.voicePrompt())) {
@@ -88,34 +96,67 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 		String from = (String) session.getAttributes().get(RelaySessionAttributes.FROM);
 		String utterance = inbound.voicePrompt().trim();
 		int generation = RelaySessionState.nextGeneration(session);
-		log.info("ConversationRelay prompt callSid={} utterance={}", callSid, utterance);
+		int turnId = RelaySessionState.nextTurnId(session);
+		long promptReceivedEpochMs = System.currentTimeMillis();
+		Long sttMs = RelaySessionState.endSttTiming(session);
+		RelayTurnLatency latency = RelayTurnLatency.start(callSid, turnId, promptReceivedEpochMs, sttMs);
+		RelaySessionState.setCurrentTurnLatency(session, latency);
+		log.info("ConversationRelay prompt callSid={} turnId={} utterance={}", callSid, turnId, utterance);
 
 		CompletableFuture.runAsync(
-				() -> voiceReplyService.streamReplyToUtterance(callSid, from, utterance, (text, last) -> {
-					if (generation != RelaySessionState.currentGeneration(session)) {
-						return false;
-					}
+				() -> {
 					try {
-						sendText(session, text, last);
-						return true;
+						voiceReplyService.streamReplyToUtterance(
+								callSid,
+								from,
+								utterance,
+								(text, last) -> {
+									if (generation != RelaySessionState.currentGeneration(session)) {
+										return false;
+									}
+									try {
+										latency.markTtsHandoff();
+										sendText(session, text, last);
+										return true;
+									}
+									catch (Exception ex) {
+										log.error("ConversationRelay send failed callSid={} turnId={}", callSid, turnId, ex);
+										return false;
+									}
+								},
+								latency);
 					}
-					catch (Exception ex) {
-						log.error("ConversationRelay send failed callSid={}", callSid, ex);
-						return false;
+					finally {
+						if (generation == RelaySessionState.currentGeneration(session) && !latency.isInterrupted()) {
+							latency.logTurn();
+						}
+						if (RelaySessionState.currentTurnLatency(session) == latency) {
+							RelaySessionState.clearCurrentTurnLatency(session);
+						}
 					}
-				}),
+				},
 				replyExecutor)
 				.exceptionally(error -> {
-					log.error("ConversationRelay reply failed callSid={}", callSid, error);
+					log.error("ConversationRelay reply failed callSid={} turnId={}", callSid, turnId, error);
+					latency.logTurn();
 					return null;
 				});
 	}
 
 	private void handleInterrupt(WebSocketSession session, RelayInboundMessage inbound) {
 		RelaySessionState.invalidateInFlight(session);
+		RelayTurnLatency latency = RelaySessionState.currentTurnLatency(session);
+		if (latency != null) {
+			latency.markInterrupted();
+			latency.logTurn();
+		}
 		String callSid = (String) session.getAttributes().get(RelaySessionAttributes.CALL_SID);
-		log.info("ConversationRelay interrupt callSid={} utteranceUntilInterrupt={} durationMs={}",
-				callSid, inbound.utteranceUntilInterrupt(), inbound.durationUntilInterruptMs());
+		log.info(
+				"ConversationRelay interrupt callSid={} utteranceUntilInterrupt={} durationUntilInterruptMs={} interruptedTurnId={}",
+				callSid,
+				inbound.utteranceUntilInterrupt(),
+				inbound.durationUntilInterruptMs(),
+				latency != null ? latency.turnId() : null);
 	}
 
 	private void sendText(WebSocketSession session, String spokenText, boolean last) throws Exception {

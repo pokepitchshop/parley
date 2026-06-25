@@ -141,7 +141,8 @@ class VoiceReplyServiceTest {
 					chunks.add(text);
 					lastFlags.add(last);
 					return true;
-				});
+				},
+				null);
 
 		assertThat(chunks).containsExactly("We are open.", "We close at eight.");
 		assertThat(lastFlags).containsExactly(false, true);

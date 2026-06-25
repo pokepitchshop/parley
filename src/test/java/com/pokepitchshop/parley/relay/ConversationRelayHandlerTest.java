@@ -25,6 +25,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pokepitchshop.parley.voice.TurnLatencyTracker;
 import com.pokepitchshop.parley.voice.VoiceReplyChunkConsumer;
 import com.pokepitchshop.parley.voice.VoiceReplyService;
 
@@ -43,44 +44,47 @@ class ConversationRelayHandlerTest {
 
 	private ObjectMapper objectMapper;
 
+	private HashMap<String, Object> sessionAttributes;
+
 	@BeforeEach
 	void setUp() {
 		objectMapper = new ObjectMapper();
 		handler = new ConversationRelayHandler(voiceReplyService, DIRECT_EXECUTOR);
+		sessionAttributes = new HashMap<>();
+		when(session.getAttributes()).thenReturn(sessionAttributes);
 	}
 
 	@Test
 	void setupStoresCallContext() throws Exception {
-		when(session.getAttributes()).thenReturn(new HashMap<>());
-
-		String payload = """
+		handler.handleTextMessage(session, new TextMessage("""
 				{
 				  "type": "setup",
 				  "sessionId": "VX123",
 				  "callSid": "CA123",
 				  "from": "+15551234567"
 				}
-				""";
+				"""));
 
-		handler.handleTextMessage(session, new TextMessage(payload));
-
-		assertThat(session.getAttributes().get(RelaySessionAttributes.CALL_SID)).isEqualTo("CA123");
-		assertThat(session.getAttributes().get(RelaySessionAttributes.FROM)).isEqualTo("+15551234567");
+		assertThat(sessionAttributes.get(RelaySessionAttributes.CALL_SID)).isEqualTo("CA123");
+		assertThat(sessionAttributes.get(RelaySessionAttributes.FROM)).isEqualTo("+15551234567");
 	}
 
 	@Test
 	void promptStreamsAgentAnswerChunks() throws Exception {
-		when(session.getAttributes()).thenReturn(new HashMap<>(Map.of(
-				RelaySessionAttributes.CALL_SID, "CA123",
-				RelaySessionAttributes.FROM, "+15551234567")));
+		sessionAttributes.put(RelaySessionAttributes.CALL_SID, "CA123");
+		sessionAttributes.put(RelaySessionAttributes.FROM, "+15551234567");
 		when(session.isOpen()).thenReturn(true);
 		doAnswer(invocation -> {
 			VoiceReplyChunkConsumer consumer = invocation.getArgument(3);
+			TurnLatencyTracker latency = invocation.getArgument(4);
+			latency.markLlmFirstToken();
+			latency.markLlmComplete();
 			consumer.onChunk("We are open.", false);
 			consumer.onChunk("We close at eight.", true);
 			return null;
 		}).when(voiceReplyService)
-				.streamReplyToUtterance(eq("CA123"), eq("+15551234567"), eq("What are your hours?"), any());
+				.streamReplyToUtterance(
+						eq("CA123"), eq("+15551234567"), eq("What are your hours?"), any(), any(RelayTurnLatency.class));
 
 		handler.handleTextMessage(session, new TextMessage("""
 				{
@@ -103,7 +107,7 @@ class ConversationRelayHandlerTest {
 	}
 
 	@Test
-	void partialPromptDoesNotReply() throws Exception {
+	void partialPromptStartsSttTimingWithoutReplying() throws Exception {
 		handler.handleTextMessage(session, new TextMessage("""
 				{
 				  "type": "prompt",
@@ -112,15 +116,41 @@ class ConversationRelayHandlerTest {
 				}
 				"""));
 
-		verify(voiceReplyService, never()).streamReplyToUtterance(any(), any(), any(), any());
+		assertThat(sessionAttributes).containsKey(RelaySessionAttributes.STT_STARTED_AT);
+		verify(voiceReplyService, never()).streamReplyToUtterance(any(), any(), any(), any(), any());
 		verify(session, never()).sendMessage(any());
 	}
 
 	@Test
+	void finalPromptComputesSttDurationFromPartialPrompts() throws Exception {
+		sessionAttributes.put(RelaySessionAttributes.CALL_SID, "CA123");
+		sessionAttributes.put(RelaySessionAttributes.FROM, "+15551234567");
+		sessionAttributes.put(RelaySessionAttributes.STT_STARTED_AT, System.currentTimeMillis() - 250);
+		when(session.isOpen()).thenReturn(true);
+		doAnswer(invocation -> {
+			invocation.getArgument(3, VoiceReplyChunkConsumer.class).onChunk("Okay.", true);
+			return null;
+		}).when(voiceReplyService)
+				.streamReplyToUtterance(any(), any(), any(), any(), any(RelayTurnLatency.class));
+
+		handler.handleTextMessage(session, new TextMessage("""
+				{
+				  "type": "prompt",
+				  "voicePrompt": "What are your hours?",
+				  "last": true
+				}
+				"""));
+
+		ArgumentCaptor<RelayTurnLatency> latencyCaptor = forClass(RelayTurnLatency.class);
+		verify(voiceReplyService).streamReplyToUtterance(
+				eq("CA123"), eq("+15551234567"), eq("What are your hours?"), any(), latencyCaptor.capture());
+		assertThat(sessionAttributes).doesNotContainKey(RelaySessionAttributes.STT_STARTED_AT);
+	}
+
+	@Test
 	void interruptDiscardsStaleReply() throws Exception {
-		when(session.getAttributes()).thenReturn(new HashMap<>(Map.of(
-				RelaySessionAttributes.CALL_SID, "CA123",
-				RelaySessionAttributes.FROM, "+15551234567")));
+		sessionAttributes.put(RelaySessionAttributes.CALL_SID, "CA123");
+		sessionAttributes.put(RelaySessionAttributes.FROM, "+15551234567");
 		doAnswer(invocation -> {
 			VoiceReplyChunkConsumer consumer = invocation.getArgument(3);
 			handler.handleTextMessage(session, new TextMessage("""
@@ -133,7 +163,7 @@ class ConversationRelayHandlerTest {
 			consumer.onChunk("We are open until six.", true);
 			return null;
 		}).when(voiceReplyService)
-				.streamReplyToUtterance(eq("CA123"), eq("+15551234567"), any(), any());
+				.streamReplyToUtterance(eq("CA123"), eq("+15551234567"), any(), any(), any());
 
 		handler.handleTextMessage(session, new TextMessage("""
 				{
