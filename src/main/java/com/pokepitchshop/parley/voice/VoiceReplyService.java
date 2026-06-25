@@ -1,5 +1,7 @@
 package com.pokepitchshop.parley.voice;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.dao.DataAccessException;
@@ -15,6 +17,7 @@ import com.pokepitchshop.parley.guardrails.ToolTurnDetector;
 import com.pokepitchshop.parley.transcript.TranscriptService;
 
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 
 @Slf4j
 @Service
@@ -69,17 +72,34 @@ public class VoiceReplyService {
 		return generateReply(callSid, fromNumber, speechResult);
 	}
 
+	public void streamReplyToUtterance(
+			String callSid,
+			String fromNumber,
+			String speechResult,
+			VoiceReplyChunkConsumer consumer) {
+		if (callLimitService.hasReachedTurnLimit(callSid)) {
+			consumer.onChunk(AgentGuardrails.CALL_LIMIT_CLOSING.trim(), true);
+			return;
+		}
+		var cannedDecline = outOfScopeDetector.cannedDecline(speechResult);
+		if (cannedDecline.isPresent()) {
+			String reply = cannedDecline.get();
+			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
+			consumer.onChunk(reply, true);
+			return;
+		}
+		if (toolTurnDetector.looksLikeToolAction(speechResult) && toolCallGuardrail.isBlocked(callSid)) {
+			String reply = toolCallGuardrail.blockedToolMessage();
+			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
+			consumer.onChunk(reply, true);
+			return;
+		}
+		streamGenerateReply(callSid, fromNumber, speechResult, consumer);
+	}
+
 	private String generateReply(String callSid, String fromNumber, String speechResult) {
-		CallerContext callerContext = callerService.contextFor(fromNumber);
 		try {
-			var prompt = chatClient.prompt()
-					.system(callerContext.systemPromptSnippet());
-			if (toolTurnDetector.looksLikeToolAction(speechResult)) {
-				prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
-			}
-			String reply = prompt
-					.user(speechResult)
-					.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid))
+			String reply = requestSpec(callSid, callerService.contextFor(fromNumber), speechResult)
 					.call()
 					.content();
 			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
@@ -92,6 +112,82 @@ public class VoiceReplyService {
 		catch (RuntimeException ex) {
 			log.error("LLM turn failed for CallSid={}", callSid, ex);
 			return AgentGuardrails.LLM_UNAVAILABLE.trim();
+		}
+	}
+
+	private void streamGenerateReply(
+			String callSid,
+			String fromNumber,
+			String speechResult,
+			VoiceReplyChunkConsumer consumer) {
+		SpokenSentenceChunker chunker = new SpokenSentenceChunker();
+		StringBuilder fullReply = new StringBuilder();
+		AtomicReference<String> pendingSentence = new AtomicReference<>();
+		try {
+			Flux<String> tokens = requestSpec(callSid, callerService.contextFor(fromNumber), speechResult)
+					.stream()
+					.content();
+			tokens.doOnNext(token -> {
+				fullReply.append(token);
+				for (String sentence : chunker.appendAndDrainSentences(token)) {
+					pendingSentence.set(emitPendingSentence(pendingSentence.get(), sentence, consumer));
+				}
+			}).blockLast();
+			finishStreaming(chunker, pendingSentence.get(), consumer);
+			transcriptService.appendTurn(callSid, fromNumber, speechResult, fullReply.toString());
+		}
+		catch (VoiceReplyStreamCancelledException ex) {
+			log.debug("ConversationRelay reply cancelled callSid={}", callSid);
+		}
+		catch (DataAccessException ex) {
+			log.error("Transcript save failed for CallSid={}", callSid, ex);
+			consumer.onChunk(AgentGuardrails.LLM_UNAVAILABLE.trim(), true);
+		}
+		catch (RuntimeException ex) {
+			log.error("LLM stream failed for CallSid={}", callSid, ex);
+			consumer.onChunk(AgentGuardrails.LLM_UNAVAILABLE.trim(), true);
+		}
+	}
+
+	private ChatClient.ChatClientRequestSpec requestSpec(
+			String callSid,
+			CallerContext callerContext,
+			String speechResult) {
+		var prompt = chatClient.prompt().system(callerContext.systemPromptSnippet());
+		if (toolTurnDetector.looksLikeToolAction(speechResult)) {
+			prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
+		}
+		return prompt
+				.user(speechResult)
+				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid));
+	}
+
+	private String emitPendingSentence(
+			String pendingSentence,
+			String completedSentence,
+			VoiceReplyChunkConsumer consumer) {
+		if (pendingSentence != null && !consumer.onChunk(pendingSentence, false)) {
+			throw new VoiceReplyStreamCancelledException();
+		}
+		return completedSentence;
+	}
+
+	private void finishStreaming(
+			SpokenSentenceChunker chunker,
+			String pendingSentence,
+			VoiceReplyChunkConsumer consumer) {
+		var remainder = chunker.flushRemainder();
+		if (remainder.isPresent()) {
+			if (pendingSentence != null && !consumer.onChunk(pendingSentence, false)) {
+				throw new VoiceReplyStreamCancelledException();
+			}
+			if (!consumer.onChunk(remainder.get(), true)) {
+				throw new VoiceReplyStreamCancelledException();
+			}
+			return;
+		}
+		if (pendingSentence != null && !consumer.onChunk(pendingSentence, true)) {
+			throw new VoiceReplyStreamCancelledException();
 		}
 	}
 }

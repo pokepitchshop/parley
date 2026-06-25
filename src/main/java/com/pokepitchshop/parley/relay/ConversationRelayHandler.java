@@ -90,25 +90,24 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 		int generation = RelaySessionState.nextGeneration(session);
 		log.info("ConversationRelay prompt callSid={} utterance={}", callSid, utterance);
 
-		CompletableFuture.supplyAsync(
-				() -> voiceReplyService.replyToUtterance(callSid, from, utterance),
-				replyExecutor)
-				.whenComplete((reply, error) -> {
-					if (error != null) {
-						log.error("ConversationRelay reply failed callSid={}", callSid, error);
-						return;
-					}
+		CompletableFuture.runAsync(
+				() -> voiceReplyService.streamReplyToUtterance(callSid, from, utterance, (text, last) -> {
 					if (generation != RelaySessionState.currentGeneration(session)) {
-						log.debug("ConversationRelay discarding stale reply callSid={} generation={}",
-								callSid, generation);
-						return;
+						return false;
 					}
 					try {
-						sendText(session, reply);
+						sendText(session, text, last);
+						return true;
 					}
 					catch (Exception ex) {
 						log.error("ConversationRelay send failed callSid={}", callSid, ex);
+						return false;
 					}
+				}),
+				replyExecutor)
+				.exceptionally(error -> {
+					log.error("ConversationRelay reply failed callSid={}", callSid, error);
+					return null;
 				});
 	}
 
@@ -119,8 +118,8 @@ public class ConversationRelayHandler extends TextWebSocketHandler {
 				callSid, inbound.utteranceUntilInterrupt(), inbound.durationUntilInterruptMs());
 	}
 
-	private void sendText(WebSocketSession session, String spokenText) throws Exception {
-		RelayOutboundMessage outbound = RelayOutboundMessage.text(spokenText, true);
+	private void sendText(WebSocketSession session, String spokenText, boolean last) throws Exception {
+		RelayOutboundMessage outbound = RelayOutboundMessage.text(spokenText, last);
 		synchronized (session) {
 			if (session.isOpen()) {
 				session.sendMessage(new TextMessage(objectMapper.writeValueAsString(outbound)));
