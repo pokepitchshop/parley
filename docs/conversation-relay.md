@@ -127,7 +127,36 @@ az containerapp logs show \
   --follow
 ```
 
-Look for: `ConversationRelay setup`, `prompt`, `interrupt`, and no `IllegalStateException` for `PUBLIC_BASE_URL`.
+Look for: `ConversationRelay setup`, `prompt`, `interrupt`, `relay.turn.latency`, and no `IllegalStateException` for `PUBLIC_BASE_URL`.
+
+## Turn latency logs (POK-30)
+
+Each completed relay turn emits a structured log line:
+
+```text
+relay.turn.latency callSid=CA… turnId=1 sttMs=180 llmFirstTokenMs=420 llmCompleteMs=980 ttsHandoffMs=450 interrupted=false
+```
+
+| Field | Meaning |
+|-------|---------|
+| `sttMs` | Partial prompt → final prompt (Twilio STT); `null` when only a final prompt arrived |
+| `llmFirstTokenMs` | Final prompt → first LLM token |
+| `llmCompleteMs` | Final prompt → LLM stream finished |
+| `ttsHandoffMs` | Final prompt → first `text` chunk sent to Twilio (proxy for TTS start; Twilio synthesizes after handoff) |
+| `interrupted` | `true` when the caller barged in before the turn finished |
+
+Barge-in: Twilio sends `interrupt`, Parley bumps the generation counter (stops in-flight LLM + further `text` sends), then handles the next `prompt`.
+
+Query in Azure Log Analytics:
+
+```kusto
+ContainerAppConsoleLogs_CL
+| where Log_s contains "relay.turn.latency"
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+```
+
+Compare with Twilio Voice Insights **Conversation Relay Call Summary** (STT / Application / TTS buckets) when tuning.
 
 ## Troubleshooting
 

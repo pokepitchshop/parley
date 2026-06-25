@@ -10,6 +10,12 @@ public final class RelaySessionAttributes {
 
 	static final String GENERATION = "relayGeneration";
 
+	static final String TURN_ID = "relayTurnId";
+
+	static final String STT_STARTED_AT = "relaySttStartedAt";
+
+	static final String CURRENT_TURN_LATENCY = "relayCurrentTurnLatency";
+
 	private RelaySessionAttributes() {
 	}
 }

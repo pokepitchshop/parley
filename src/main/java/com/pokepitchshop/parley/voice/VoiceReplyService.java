@@ -77,6 +77,15 @@ public class VoiceReplyService {
 			String fromNumber,
 			String speechResult,
 			VoiceReplyChunkConsumer consumer) {
+		streamReplyToUtterance(callSid, fromNumber, speechResult, consumer, null);
+	}
+
+	public void streamReplyToUtterance(
+			String callSid,
+			String fromNumber,
+			String speechResult,
+			VoiceReplyChunkConsumer consumer,
+			TurnLatencyTracker latency) {
 		if (callLimitService.hasReachedTurnLimit(callSid)) {
 			consumer.onChunk(AgentGuardrails.CALL_LIMIT_CLOSING.trim(), true);
 			return;
@@ -94,7 +103,7 @@ public class VoiceReplyService {
 			consumer.onChunk(reply, true);
 			return;
 		}
-		streamGenerateReply(callSid, fromNumber, speechResult, consumer);
+		streamGenerateReply(callSid, fromNumber, speechResult, consumer, latency);
 	}
 
 	private String generateReply(String callSid, String fromNumber, String speechResult) {
@@ -119,7 +128,8 @@ public class VoiceReplyService {
 			String callSid,
 			String fromNumber,
 			String speechResult,
-			VoiceReplyChunkConsumer consumer) {
+			VoiceReplyChunkConsumer consumer,
+			TurnLatencyTracker latency) {
 		SpokenSentenceChunker chunker = new SpokenSentenceChunker();
 		StringBuilder fullReply = new StringBuilder();
 		AtomicReference<String> pendingSentence = new AtomicReference<>();
@@ -128,11 +138,17 @@ public class VoiceReplyService {
 					.stream()
 					.content();
 			tokens.doOnNext(token -> {
+				if (latency != null) {
+					latency.markLlmFirstToken();
+				}
 				fullReply.append(token);
 				for (String sentence : chunker.appendAndDrainSentences(token)) {
 					pendingSentence.set(emitPendingSentence(pendingSentence.get(), sentence, consumer));
 				}
 			}).blockLast();
+			if (latency != null) {
+				latency.markLlmComplete();
+			}
 			finishStreaming(chunker, pendingSentence.get(), consumer);
 			transcriptService.appendTurn(callSid, fromNumber, speechResult, fullReply.toString());
 		}
