@@ -2,7 +2,7 @@
 
 Real-time voice via Twilio **ConversationRelay**: Twilio opens a WebSocket to Parley, streams caller speech as JSON `prompt` messages, and speaks back `text` tokens from the LLM.
 
-Turn-based `/voice` (Gather + Say) remains for fallback; production calls should use **`/voice/relay`**.
+Turn-based `/voice` (Gather + Say) is legacy; set `parley.voice.mode=turn` for local dev. **Production** uses ConversationRelay on **`POST /voice`** (same webhook URL Twilio already uses).
 
 ## Architecture
 
@@ -53,22 +53,19 @@ az containerapp show \
 
 ### Twilio voice webhook
 
-Point the number at **relay**, not turn-based `/voice`:
+Point the number at **`/voice`** (POST). Both `/voice` and `/voice/relay` return ConversationRelay TwiML; `/voice` is the production default.
 
 | Setting | Value |
 |---------|--------|
 | A call comes in | Webhook |
-| URL | `{app_url}/voice/relay` |
+| URL | `{app_url}/voice` |
 | Method | POST |
 | Status callback | `{app_url}/voice/status` (POST) |
 | SIP trunk | **cleared** (`trunk_sid` empty) |
 
 ```bash
-# Fix .env: PUBLIC_BASE_URL=<app_url>  (no /voice suffix)
-./scripts/repoint-twilio-voice-webhook.sh   # still sets /voice — override in Console for relay
+./scripts/repoint-twilio-voice-webhook.sh   # sets {PUBLIC_BASE_URL}/voice
 ```
-
-For ConversationRelay, set the webhook URL manually in [Twilio Console](https://console.twilio.com) → Phone Numbers → `{number}` → **Voice** → `{app_url}/voice/relay`.
 
 ### Other secrets (unchanged)
 

@@ -80,18 +80,20 @@ fi
 echo ""
 echo "=== /voice TwiML smoke test ==="
 TWIML=$(curl -s -X POST -H "ngrok-skip-browser-warning: true" "$VOICE_URL" || true)
-if echo "$TWIML" | grep -q "Poke Pitch Shop" && echo "$TWIML" | grep -q "<Gather"; then
-	pass "POST ${VOICE_URL} returns Parley greeting + Gather"
+if echo "$TWIML" | grep -q "ConversationRelay" && echo "$TWIML" | grep -q "Poke Pitch Shop"; then
+	pass "POST ${VOICE_URL} returns ConversationRelay TwiML"
+elif echo "$TWIML" | grep -q "Poke Pitch Shop" && echo "$TWIML" | grep -q "<Gather"; then
+	pass "POST ${VOICE_URL} returns turn-based greeting + Gather (parley.voice.mode=turn)"
 else
-	fail "POST ${VOICE_URL} did not return expected TwiML"
+	fail "POST ${VOICE_URL} did not return expected TwiML (expected ConversationRelay by default)"
 fi
 
 echo ""
-echo "=== LLM (turn loop) ==="
+echo "=== LLM ==="
 if [[ -n "${AZURE_OPENAI_API_KEY:-}" && -n "${SPRING_AI_OPENAI_BASE_URL:-}" ]]; then
 	pass "Azure OpenAI env set (AZURE_OPENAI_API_KEY + SPRING_AI_OPENAI_BASE_URL)"
 else
-	fail "Set AZURE_OPENAI_API_KEY and SPRING_AI_OPENAI_BASE_URL in .env — /voice/respond will 401"
+	fail "Set AZURE_OPENAI_API_KEY and SPRING_AI_OPENAI_BASE_URL in .env — relay LLM will fail"
 fi
 
 echo ""

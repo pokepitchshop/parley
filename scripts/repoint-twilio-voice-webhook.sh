@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Repoint a Twilio phone number from Retell (SIP trunk) to Parley POST /voice.
+# POST /voice returns ConversationRelay TwiML by default (parley.voice.mode=relay).
+# Legacy Gather/Say loop: set parley.voice.mode=turn locally only.
 # Clears trunk_sid — Twilio ignores voice_url while a trunk is attached.
 # Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, PUBLIC_BASE_URL
 set -euo pipefail
