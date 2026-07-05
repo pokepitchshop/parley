@@ -1,5 +1,7 @@
 # parley-infra
 
+App overview and local dev: see [../README.md](../README.md).
+
 Terraform for standing up **Parley** on Azure, organized by lifecycle layer.
 State + runs live in HCP Terraform (org: `pokepitchshop`).
 
