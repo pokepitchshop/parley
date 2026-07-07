@@ -1,5 +1,7 @@
 # First Call milestone acceptance (POK-12)
 
+> **Production voice** now uses ConversationRelay on `POST /voice` by default. For Real-Time Voice acceptance (interrupt, streaming, latency logs), see **[real-time-voice.md](real-time-voice.md)**. The steps below apply to the **legacy turn-based loop** when `parley.voice.mode=turn`.
+
 End-to-end test that Parley handles a real phone call: greeting, turn loop, and memory within one call.
 
 ## Prerequisites
@@ -18,6 +20,7 @@ Configured in `application.properties` (override locally if needed):
 |----------|---------|---------|
 | `parley.voice.say-voice` | `POLLY_JOANNA_NEURAL` | Neural TTS voice on `<Say>` |
 | `parley.voice.speech-timeout` | `3` | Seconds of silence after speech before Twilio sends `SpeechResult` |
+| `parley.voice.mode` | `relay` | Set to `turn` to exercise this legacy acceptance script |
 
 System prompt in `ChatClientConfig` is tuned for short, spoken answers and same-call recall via `ChatMemory` keyed by `CallSid`.
 

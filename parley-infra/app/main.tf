@@ -18,6 +18,11 @@ data "terraform_remote_state" "platform" {
   }
 }
 
+data "azurerm_container_app_environment" "env" {
+  name                = "${local.prefix}-cae"
+  resource_group_name = local.rg_name
+}
+
 locals {
   prefix             = "${var.project}-${var.environment}"
   identity_id        = data.terraform_remote_state.foundation.outputs.identity_id
@@ -27,10 +32,13 @@ locals {
   acr_server         = data.terraform_remote_state.platform.outputs.acr_login_server
   openai_endpoint    = data.terraform_remote_state.platform.outputs.openai_endpoint
   openai_deploy      = data.terraform_remote_state.platform.outputs.openai_deployment_name
+  app_name           = "${local.prefix}-app"
+  # Ingress FQDN is {app_name}.{env default domain}; cannot self-reference azurerm_container_app.parley.
+  public_base_url = "https://${local.app_name}.${data.azurerm_container_app_environment.env.default_domain}"
 }
 
 resource "azurerm_container_app" "parley" {
-  name                         = "${local.prefix}-app"
+  name                         = local.app_name
   resource_group_name          = local.rg_name
   container_app_environment_id = local.env_id
   revision_mode                = "Single"
@@ -120,7 +128,7 @@ resource "azurerm_container_app" "parley" {
       }
       env {
         name  = "PUBLIC_BASE_URL"
-        value = "https://${azurerm_container_app.parley.ingress[0].fqdn}"
+        value = local.public_base_url
       }
 
       liveness_probe {

@@ -12,6 +12,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.pokepitchshop.parley.relay.RelayTwiMLService;
 import com.pokepitchshop.parley.transcript.CallSummaryService;
 import com.pokepitchshop.parley.twilio.TwilioSignatureFilter;
+import com.pokepitchshop.parley.voice.VoiceConfig;
 import com.pokepitchshop.parley.voice.VoiceTwiMLService;
 
 @WebMvcTest(
@@ -27,6 +29,7 @@ import com.pokepitchshop.parley.voice.VoiceTwiMLService;
 				type = FilterType.ASSIGNABLE_TYPE,
 				classes = TwilioSignatureFilter.class))
 @AutoConfigureMockMvc(addFilters = false)
+@Import(VoiceConfig.class)
 class VoiceControllerTest {
 
 	@Autowired
@@ -42,16 +45,17 @@ class VoiceControllerTest {
 	private CallSummaryService callSummaryService;
 
 	@Test
-	void voiceReturnsOpeningTwiml() throws Exception {
+	void voiceReturnsConversationRelayTwimlByDefault() throws Exception {
 		String twiml = """
 				<?xml version="1.0" encoding="UTF-8"?>
 				<Response>
-				<Say voice="Polly.Joanna-Neural">Hi, you're through to Poke Pitch Shop. How can I help you today?</Say>
-				<Gather input="speech" action="/voice/respond" method="POST"/>
+				<Connect>
+				<ConversationRelay url="wss://parley.example.com/relay" welcomeGreeting="Hi, you're through to Poke Pitch Shop. What can I help you with?"/>
+				</Connect>
 				</Response>
 				""";
 
-		given(voiceTwiMLService.openingResponse(null)).willReturn(twiml);
+		given(relayTwiMLService.conversationRelayConnect(null)).willReturn(twiml);
 
 		mockMvc.perform(post("/voice"))
 				.andExpect(status().isOk())
@@ -151,5 +155,4 @@ class VoiceControllerTest {
 
 		org.mockito.Mockito.verify(callSummaryService, org.mockito.Mockito.never()).onCallCompleted("CA123");
 	}
-
 }

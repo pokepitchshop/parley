@@ -54,7 +54,7 @@ class VoiceTwiMLServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		VoiceProperties voiceProperties = new VoiceProperties("POLLY_JOANNA_NEURAL", 3, 25, 5);
+		VoiceProperties voiceProperties = new VoiceProperties("POLLY_JOANNA_NEURAL", 3, 25, 5, "turn");
 		service = new VoiceTwiMLService(
 				voiceProperties,
 				transcriptService,
