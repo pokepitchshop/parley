@@ -7,9 +7,9 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
-import com.pokepitchshop.parley.caller.CallerContext;
-import com.pokepitchshop.parley.caller.CallerService;
 import com.pokepitchshop.parley.guardrails.AgentGuardrails;
+import com.pokepitchshop.parley.shop.TurnContext;
+import com.pokepitchshop.parley.shop.TurnContextService;
 import com.pokepitchshop.parley.guardrails.CallLimitService;
 import com.pokepitchshop.parley.guardrails.OutOfScopeDetector;
 import com.pokepitchshop.parley.guardrails.ToolCallGuardrail;
@@ -27,7 +27,7 @@ public class VoiceReplyService {
 
 	private final TranscriptService transcriptService;
 
-	private final CallerService callerService;
+	private final TurnContextService turnContextService;
 
 	private final CallLimitService callLimitService;
 
@@ -40,14 +40,14 @@ public class VoiceReplyService {
 	public VoiceReplyService(
 			ChatClient chatClient,
 			TranscriptService transcriptService,
-			CallerService callerService,
+			TurnContextService turnContextService,
 			CallLimitService callLimitService,
 			OutOfScopeDetector outOfScopeDetector,
 			ToolTurnDetector toolTurnDetector,
 			ToolCallGuardrail toolCallGuardrail) {
 		this.chatClient = chatClient;
 		this.transcriptService = transcriptService;
-		this.callerService = callerService;
+		this.turnContextService = turnContextService;
 		this.callLimitService = callLimitService;
 		this.outOfScopeDetector = outOfScopeDetector;
 		this.toolTurnDetector = toolTurnDetector;
@@ -108,7 +108,7 @@ public class VoiceReplyService {
 
 	private String generateReply(String callSid, String fromNumber, String speechResult) {
 		try {
-			String reply = requestSpec(callSid, callerService.contextFor(fromNumber), speechResult)
+			String reply = requestSpec(callSid, turnContextService.forCaller(fromNumber), speechResult)
 					.call()
 					.content();
 			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
@@ -134,7 +134,7 @@ public class VoiceReplyService {
 		StringBuilder fullReply = new StringBuilder();
 		AtomicReference<String> pendingSentence = new AtomicReference<>();
 		try {
-			Flux<String> tokens = requestSpec(callSid, callerService.contextFor(fromNumber), speechResult)
+			Flux<String> tokens = requestSpec(callSid, turnContextService.forCaller(fromNumber), speechResult)
 					.stream()
 					.content();
 			tokens.doOnNext(token -> {
@@ -167,9 +167,11 @@ public class VoiceReplyService {
 
 	private ChatClient.ChatClientRequestSpec requestSpec(
 			String callSid,
-			CallerContext callerContext,
+			TurnContext turnContext,
 			String speechResult) {
-		var prompt = chatClient.prompt().system(callerContext.systemPromptSnippet());
+		var prompt = chatClient.prompt()
+				.system(turnContext.shopSnippet())
+				.system(turnContext.callerSnippet());
 		if (toolTurnDetector.looksLikeToolAction(speechResult)) {
 			prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
 		}
