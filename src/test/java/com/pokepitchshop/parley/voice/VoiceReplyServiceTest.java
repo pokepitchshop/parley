@@ -20,12 +20,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 
 import com.pokepitchshop.parley.caller.CallerContext;
-import com.pokepitchshop.parley.caller.CallerService;
 import com.pokepitchshop.parley.guardrails.AgentGuardrails;
 import com.pokepitchshop.parley.guardrails.CallLimitService;
 import com.pokepitchshop.parley.guardrails.OutOfScopeDetector;
 import com.pokepitchshop.parley.guardrails.ToolCallGuardrail;
 import com.pokepitchshop.parley.guardrails.ToolTurnDetector;
+import com.pokepitchshop.parley.shop.TurnContext;
+import com.pokepitchshop.parley.shop.TurnContextService;
 import com.pokepitchshop.parley.transcript.TranscriptService;
 
 import reactor.core.publisher.Flux;
@@ -51,7 +52,7 @@ class VoiceReplyServiceTest {
 	private TranscriptService transcriptService;
 
 	@Mock
-	private CallerService callerService;
+	private TurnContextService turnContextService;
 
 	@Mock
 	private CallLimitService callLimitService;
@@ -72,7 +73,7 @@ class VoiceReplyServiceTest {
 		service = new VoiceReplyService(
 				chatClient,
 				transcriptService,
-				callerService,
+				turnContextService,
 				callLimitService,
 				outOfScopeDetector,
 				toolTurnDetector,
@@ -82,10 +83,11 @@ class VoiceReplyServiceTest {
 	@Test
 	void replyToUtteranceUsesLlmWithMemory() {
 		CallerContext context = CallerContext.anonymous();
+		TurnContext turnContext = new TurnContext(context.systemPromptSnippet(), "Shop facts here.");
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(Optional.empty());
 		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
-		given(callerService.contextFor("+15551234567")).willReturn(context);
+		given(turnContextService.forCaller("+15551234567")).willReturn(turnContext);
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
@@ -96,6 +98,7 @@ class VoiceReplyServiceTest {
 		String reply = service.replyToUtterance(CALL_SID, "+15551234567", "What are your hours?");
 
 		assertThat(reply).isEqualTo("We are open until six.");
+		verify(requestSpec).system("Shop facts here.");
 		verify(requestSpec).system(context.systemPromptSnippet());
 		verify(transcriptService).appendTurn(CALL_SID, "+15551234567", "What are your hours?", "We are open until six.");
 	}
@@ -105,7 +108,8 @@ class VoiceReplyServiceTest {
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(Optional.empty());
 		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
-		given(callerService.contextFor("+15551234567")).willReturn(CallerContext.anonymous());
+		given(turnContextService.forCaller("+15551234567"))
+				.willReturn(new TurnContext(CallerContext.anonymous().systemPromptSnippet(), "Shop facts."));
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
@@ -120,12 +124,13 @@ class VoiceReplyServiceTest {
 	@Test
 	void streamReplyToUtteranceEmitsSentenceChunks() {
 		CallerContext context = CallerContext.anonymous();
+		TurnContext turnContext = new TurnContext(context.systemPromptSnippet(), "Shop facts here.");
 		List<String> chunks = new ArrayList<>();
 		List<Boolean> lastFlags = new ArrayList<>();
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(Optional.empty());
 		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
-		given(callerService.contextFor("+15551234567")).willReturn(context);
+		given(turnContextService.forCaller("+15551234567")).willReturn(turnContext);
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
