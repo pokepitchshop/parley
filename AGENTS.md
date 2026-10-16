@@ -31,14 +31,19 @@ transition is your only ground truth that a test actually tests something.
 
 ## The gates (what `./gradlew check` runs, and why)
 
-| Gate | Catches | Gameable? |
-|------|---------|-----------|
-| Surefire | unit + slice tests (`*Test`) | — |
-| Failsafe | integration tests (`*IT`) | — |
-| Spotless | formatting / imports | no — auto-fixable with `./gradlew spotlessApply` |
-| ArchUnit | layering, **field injection** | no — structural facts |
-| JaCoCo | line-coverage floor | **YES** — can be hit with assertion-free tests |
-| PITest | tests that don't actually test | no — this is the anti-cheat |
+> **Gate status:** only `test` is wired into the build today. The rest are
+> planned in POK-479. Until a gate is wired, `./gradlew check` going green
+> does **not** mean it passed: follow its rule by hand and say in your
+> hand-back which planned gates you could not run.
+
+| Gate | Catches | Gameable? | Wired? |
+|------|---------|-----------|--------|
+| `test` | unit + slice tests (`*Test`) | — | ✅ |
+| `integrationTest` | integration tests (`*IT`) | — | ❌ POK-479 |
+| Spotless | formatting / imports | no — auto-fixable with `./gradlew spotlessApply` | ❌ POK-479 |
+| ArchUnit | layering, **field injection** | no — structural facts | ❌ POK-479 |
+| JaCoCo | line-coverage floor | **YES** — can be hit with assertion-free tests | ❌ POK-479 |
+| PITest | tests that don't actually test | no — this is the anti-cheat | ❌ POK-479 |
 
 JaCoCo tells you a line was *executed*. PITest tells you a test would
 *notice if that line were wrong*. When they disagree, PITest is right and your
