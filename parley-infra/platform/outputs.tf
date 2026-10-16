@@ -29,3 +29,11 @@ output "openai_deployment_name" {
 output "container_app_environment_id" {
   value = azurerm_container_app_environment.env.id
 }
+
+output "cosmos_account_name" {
+  value = azurerm_cosmosdb_account.mongo.name
+}
+
+output "cosmos_mongo_database_name" {
+  value = azurerm_cosmosdb_mongo_database.parley.name
+}
