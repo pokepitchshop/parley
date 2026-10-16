@@ -97,3 +97,48 @@ resource "azurerm_container_app_environment" "env" {
   location                   = local.location
   log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
 }
+
+# ---- Cosmos DB for MongoDB (free tier: 1000 RU/s + 25 GB, one per subscription) ----
+resource "azurerm_cosmosdb_account" "mongo" {
+  name                 = "${local.prefix}-cosmos" # globally unique
+  resource_group_name  = local.rg_name
+  location             = local.location
+  offer_type           = "Standard"
+  kind                 = "MongoDB"
+  mongo_server_version = "4.2"
+  free_tier_enabled    = true # can only be set at creation
+
+  capabilities {
+    name = "EnableMongo"
+  }
+
+  # Hard cap at the free allowance so the account can never bill for throughput.
+  capacity {
+    total_throughput_limit = 1000
+  }
+
+  consistency_policy {
+    consistency_level = "Session"
+  }
+
+  # Slimmest backup: daily, 2 copies (both free), locally redundant only.
+  backup {
+    type                = "Periodic"
+    interval_in_minutes = 1440
+    retention_in_hours  = 48
+    storage_redundancy  = "Local"
+  }
+
+  geo_location {
+    location          = local.location
+    failover_priority = 0
+  }
+}
+
+# Shared database throughput: all collections draw from the free 1000 RU/s.
+resource "azurerm_cosmosdb_mongo_database" "parley" {
+  name                = "parley"
+  resource_group_name = local.rg_name
+  account_name        = azurerm_cosmosdb_account.mongo.name
+  throughput          = 1000
+}
