@@ -4,7 +4,7 @@ How agents work in this repo. The build enforces most of what matters; this file
 covers the few things it can't, plus the loop you run every cycle.
 
 Read this before starting a card. The single source of truth for "done" is
-`mvn verify` going green — not your own judgment that the code looks finished.
+`./gradlew check` going green — not your own judgment that the code looks finished.
 
 ---
 
@@ -19,8 +19,8 @@ transition is your only ground truth that a test actually tests something.
 2. **Write ONE failing test** for the next criterion. Run it. Show the red
    output. (No red, no green — a test that has never failed proves nothing.)
 3. **Write the minimum code** to pass it. Run it. Show green.
-4. **Refactor.** Re-run the fast suite (`mvn test`).
-5. **Run `mvn verify`.** If a gate fails, FIX THE CODE OR THE TEST.
+4. **Refactor.** Re-run the fast suite (`./gradlew test`).
+5. **Run `./gradlew check`.** If a gate fails, FIX THE CODE OR THE TEST.
    Never weaken, `@Disabled`, delete, or lower the threshold of a gate to
    reach green. If you believe a gate is genuinely wrong, STOP and say so.
 6. Next criterion. Repeat.
@@ -29,13 +29,13 @@ transition is your only ground truth that a test actually tests something.
 
 ---
 
-## The gates (what `mvn verify` runs, and why)
+## The gates (what `./gradlew check` runs, and why)
 
 | Gate | Catches | Gameable? |
 |------|---------|-----------|
 | Surefire | unit + slice tests (`*Test`) | — |
 | Failsafe | integration tests (`*IT`) | — |
-| Spotless | formatting / imports | no — auto-fixable with `mvn spotless:apply` |
+| Spotless | formatting / imports | no — auto-fixable with `./gradlew spotlessApply` |
 | ArchUnit | layering, **field injection** | no — structural facts |
 | JaCoCo | line-coverage floor | **YES** — can be hit with assertion-free tests |
 | PITest | tests that don't actually test | no — this is the anti-cheat |
@@ -80,7 +80,7 @@ that can be enforced; the rest is on you and the reviewer.
 - **Constructor injection only.** Use `@RequiredArgsConstructor` + `private
   final` fields. Never `@Autowired` on a field — ArchUnit fails the build on it.
   (This is what keeps the `sut` constructible without a Spring context.)
-- **Respect the layers:** `controller → service → repository → modle -> config`, one
+- **Respect the layers:** `controller → service → repository → model → config`, one
   direction. A controller must not touch a repository. ArchUnit enforces this.
 
 ---
@@ -104,4 +104,4 @@ that can be enforced; the rest is on you and the reviewer.
 - Add a dependency without asking.
 - Mock the type under test.
 - Expand scope beyond the card.
-- Claim green without pasting the actual `mvn verify` output.
+- Claim green without pasting the actual `./gradlew check` output.
