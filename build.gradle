@@ -39,6 +39,7 @@ dependencies {
 	implementation 'org.springframework.ai:spring-ai-autoconfigure-model-chat-memory'
 	implementation 'com.azure:azure-identity:1.15.4'
 	implementation 'com.twilio.sdk:twilio:10.6.4'
+	implementation 'org.apache.commons:commons-csv:1.14.1'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
