@@ -18,6 +18,9 @@ public class TurnContextService {
 	static final String NO_MATCHING_LISTINGS = "No matching listings right now. Do not guess stock or prices; "
 			+ "offer to have someone check, or suggest browsing the eBay store.";
 
+	/** Shared title tokens needed to inject listings on a turn without shopping words. */
+	static final int STRONG_MATCH_SCORE = 2;
+
 	private static final DateTimeFormatter AS_OF = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.US)
 			.withZone(ZoneId.of("America/Chicago"));
 
@@ -44,12 +47,19 @@ public class TurnContextService {
 	}
 
 	private String inventorySnippet(String utterance) {
-		if (!ShoppingIntent.looksLikeShopping(utterance)) {
-			return "";
+		List<InventoryItem> matches;
+		if (ShoppingIntent.looksLikeShopping(utterance)) {
+			matches = inventoryIndex.match(utterance);
+			if (matches.isEmpty()) {
+				return NO_MATCHING_LISTINGS;
+			}
 		}
-		List<InventoryItem> matches = inventoryIndex.match(utterance);
-		if (matches.isEmpty()) {
-			return NO_MATCHING_LISTINGS;
+		else {
+			// Callers often name a card with no shopping words ("What about an ice tunnel?").
+			matches = inventoryIndex.match(utterance, STRONG_MATCH_SCORE);
+			if (matches.isEmpty()) {
+				return "";
+			}
 		}
 		// Matches only exist after a successful load, and every load records lastImportAt.
 		var snippet = new StringBuilder("Inventory (eBay store %s, as of %s):"

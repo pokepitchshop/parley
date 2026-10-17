@@ -19,9 +19,10 @@ final class InventoryTextNormalizer {
 
 	/** Filler words plus shopping words that appear in nearly every utterance or title. */
 	private static final Set<String> STOPWORDS = Set.of(
-			"a", "an", "and", "any", "anything", "are", "can", "card", "do", "for", "get", "got", "have",
-			"i", "in", "is", "it", "like", "looking", "me", "my", "of", "on", "or", "some", "sell",
-			"that", "the", "there", "this", "to", "want", "what", "with", "you", "your");
+			"a", "an", "and", "any", "anything", "are", "can", "card", "do", "ebay", "for", "get", "got",
+			"have", "i", "in", "inventory", "is", "it", "item", "like", "looking", "me", "my", "of", "on",
+			"or", "some", "sell", "stock", "store", "that", "the", "there", "this", "to", "want", "what",
+			"with", "you", "your");
 
 	/** Alias phrase (normalized, space-separated) → canonical single token. Longest aliases first. */
 	private final List<Synonym> synonyms;
