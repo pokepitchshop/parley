@@ -18,6 +18,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.Prompt;
 
 import com.pokepitchshop.parley.caller.CallerContext;
 import com.pokepitchshop.parley.guardrails.AgentGuardrails;
@@ -83,11 +90,11 @@ class VoiceReplyServiceTest {
 	@Test
 	void replyToUtteranceUsesLlmWithMemory() {
 		CallerContext context = CallerContext.anonymous();
-		TurnContext turnContext = new TurnContext(context.systemPromptSnippet(), "Shop facts here.");
+		TurnContext turnContext = new TurnContext(context.systemPromptSnippet(), "Shop facts here.", "");
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(Optional.empty());
 		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
-		given(turnContextService.forCaller("+15551234567")).willReturn(turnContext);
+		given(turnContextService.forCaller("+15551234567", "What are your hours?")).willReturn(turnContext);
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
@@ -98,9 +105,45 @@ class VoiceReplyServiceTest {
 		String reply = service.replyToUtterance(CALL_SID, "+15551234567", "What are your hours?");
 
 		assertThat(reply).isEqualTo("We are open until six.");
-		verify(requestSpec).system("Shop facts here.");
-		verify(requestSpec).system(context.systemPromptSnippet());
 		verify(transcriptService).appendTurn(CALL_SID, "+15551234567", "What are your hours?", "We are open until six.");
+	}
+
+	@Test
+	void promptSendsGuardrailsShopCallerAndInventoryAsOneSystemMessage() {
+		List<Prompt> sent = new ArrayList<>();
+		ChatModel model = new ChatModel() {
+			@Override
+			public ChatResponse call(Prompt prompt) {
+				sent.add(prompt);
+				return new ChatResponse(List.of(new Generation(new AssistantMessage("We have one."))));
+			}
+		};
+		var sut = new VoiceReplyService(
+				ChatClient.builder(model).defaultSystem(AgentGuardrails.VOICE_SYSTEM_PROMPT).build(),
+				transcriptService,
+				turnContextService,
+				callLimitService,
+				outOfScopeDetector,
+				toolTurnDetector,
+				toolCallGuardrail);
+		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
+		given(outOfScopeDetector.cannedDecline("Do you have a Griffey rookie?")).willReturn(Optional.empty());
+		given(toolTurnDetector.looksLikeToolAction("Do you have a Griffey rookie?")).willReturn(false);
+		given(turnContextService.forCaller("+15551234567", "Do you have a Griffey rookie?"))
+				.willReturn(new TurnContext("Caller facts.", "Shop facts.", "Inventory facts."));
+
+		sut.replyToUtterance(CALL_SID, "+15551234567", "Do you have a Griffey rookie?");
+
+		List<Message> systemMessages = sent.get(0).getInstructions().stream()
+				.filter(m -> m.getMessageType() == MessageType.SYSTEM)
+				.toList();
+		assertThat(systemMessages).hasSize(1);
+		assertThat(systemMessages.get(0).getText())
+				.contains(AgentGuardrails.VOICE_SYSTEM_PROMPT.trim())
+				.contains(AgentGuardrails.STOCK_RULES.trim())
+				.contains("Shop facts.")
+				.contains("Caller facts.")
+				.contains("Inventory facts.");
 	}
 
 	@Test
@@ -108,8 +151,8 @@ class VoiceReplyServiceTest {
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(Optional.empty());
 		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
-		given(turnContextService.forCaller("+15551234567"))
-				.willReturn(new TurnContext(CallerContext.anonymous().systemPromptSnippet(), "Shop facts."));
+		given(turnContextService.forCaller("+15551234567", "What are your hours?"))
+				.willReturn(new TurnContext(CallerContext.anonymous().systemPromptSnippet(), "Shop facts.", ""));
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);
@@ -124,13 +167,13 @@ class VoiceReplyServiceTest {
 	@Test
 	void streamReplyToUtteranceEmitsSentenceChunks() {
 		CallerContext context = CallerContext.anonymous();
-		TurnContext turnContext = new TurnContext(context.systemPromptSnippet(), "Shop facts here.");
+		TurnContext turnContext = new TurnContext(context.systemPromptSnippet(), "Shop facts here.", "");
 		List<String> chunks = new ArrayList<>();
 		List<Boolean> lastFlags = new ArrayList<>();
 		given(callLimitService.hasReachedTurnLimit(CALL_SID)).willReturn(false);
 		given(outOfScopeDetector.cannedDecline("What are your hours?")).willReturn(Optional.empty());
 		given(toolTurnDetector.looksLikeToolAction("What are your hours?")).willReturn(false);
-		given(turnContextService.forCaller("+15551234567")).willReturn(turnContext);
+		given(turnContextService.forCaller("+15551234567", "What are your hours?")).willReturn(turnContext);
 		given(chatClient.prompt()).willReturn(requestSpec);
 		given(requestSpec.system(anyString())).willReturn(requestSpec);
 		given(requestSpec.user(anyString())).willReturn(requestSpec);

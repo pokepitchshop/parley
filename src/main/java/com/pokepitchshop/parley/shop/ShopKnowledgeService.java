@@ -31,6 +31,10 @@ public class ShopKnowledgeService {
 		return StringUtils.hasText(fact) ? " " + fact.trim() : "";
 	}
 
+	public String ebaySellerName() {
+		return storeFacts.ebaySellerName();
+	}
+
 	public String shopSnippet() {
 		return storeFactsSnippet();
 	}

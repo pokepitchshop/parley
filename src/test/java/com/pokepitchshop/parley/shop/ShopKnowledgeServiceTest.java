@@ -56,4 +56,9 @@ class ShopKnowledgeServiceTest {
 	void shopSnippetDelegatesToStoreFactsForPhaseZero() {
 		assertThat(sut.shopSnippet()).isEqualTo(sut.storeFactsSnippet());
 	}
+
+	@Test
+	void ebaySellerNameComesFromConfig() {
+		assertThat(sut.ebaySellerName()).isEqualTo("PokePitchShop");
+	}
 }

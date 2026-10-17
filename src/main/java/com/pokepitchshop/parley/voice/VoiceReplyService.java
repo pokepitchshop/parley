@@ -1,11 +1,14 @@
 package com.pokepitchshop.parley.voice;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import com.pokepitchshop.parley.guardrails.AgentGuardrails;
 import com.pokepitchshop.parley.shop.TurnContext;
@@ -108,7 +111,7 @@ public class VoiceReplyService {
 
 	private String generateReply(String callSid, String fromNumber, String speechResult) {
 		try {
-			String reply = requestSpec(callSid, turnContextService.forCaller(fromNumber), speechResult)
+			String reply = requestSpec(callSid, turnContextService.forCaller(fromNumber, speechResult), speechResult)
 					.call()
 					.content();
 			transcriptService.appendTurn(callSid, fromNumber, speechResult, reply);
@@ -134,7 +137,7 @@ public class VoiceReplyService {
 		StringBuilder fullReply = new StringBuilder();
 		AtomicReference<String> pendingSentence = new AtomicReference<>();
 		try {
-			Flux<String> tokens = requestSpec(callSid, turnContextService.forCaller(fromNumber), speechResult)
+			Flux<String> tokens = requestSpec(callSid, turnContextService.forCaller(fromNumber, speechResult), speechResult)
 					.stream()
 					.content();
 			tokens.doOnNext(token -> {
@@ -169,15 +172,28 @@ public class VoiceReplyService {
 			String callSid,
 			TurnContext turnContext,
 			String speechResult) {
-		var prompt = chatClient.prompt()
-				.system(turnContext.shopSnippet())
-				.system(turnContext.callerSnippet());
-		if (toolTurnDetector.looksLikeToolAction(speechResult)) {
-			prompt = prompt.system(AgentGuardrails.TOOL_TURN_HINT);
-		}
-		return prompt
+		return chatClient.prompt()
+				.system(systemText(turnContext, speechResult))
 				.user(speechResult)
 				.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, callSid));
+	}
+
+	/**
+	 * Each {@code system(...)} call replaces the previous system text, including the client's
+	 * default, so every part of the system prompt has to go in a single call.
+	 */
+	private String systemText(TurnContext turnContext, String speechResult) {
+		var parts = Stream.of(
+				AgentGuardrails.VOICE_SYSTEM_PROMPT,
+				AgentGuardrails.STOCK_RULES,
+				turnContext.shopSnippet(),
+				turnContext.callerSnippet(),
+				turnContext.inventorySnippet(),
+				toolTurnDetector.looksLikeToolAction(speechResult) ? AgentGuardrails.TOOL_TURN_HINT : null);
+		return parts
+				.filter(StringUtils::hasText)
+				.map(String::trim)
+				.collect(Collectors.joining("\n\n"));
 	}
 
 	private String emitPendingSentence(

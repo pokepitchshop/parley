@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +68,11 @@ public class InventoryIndex {
 						snapshot.get().itemCount(), ex);
 			}
 		}
+	}
+
+	/** When the loaded snapshot was imported; empty until the first successful load. */
+	public Optional<Instant> lastImportAt() {
+		return Optional.ofNullable(snapshot.get().lastImportAt());
 	}
 
 	/** Top matching active listings for a caller utterance; empty when nothing shopping-related matches. */
