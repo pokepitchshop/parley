@@ -1,6 +1,7 @@
 package com.pokepitchshop.parley.shop;
 
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class ShopKnowledgeService {
@@ -14,7 +15,7 @@ public class ShopKnowledgeService {
 	public String storeFactsSnippet() {
 		return """
 				You represent %s, an eBay seller trading as %s. \
-				%s %s %s \
+				%s %s %s%s \
 				If asked what's new and you do not have live inventory details, \
 				say new cards are listed on eBay and offer to help them find something specific.
 				""".formatted(
@@ -22,7 +23,12 @@ public class ShopKnowledgeService {
 				storeFacts.ebaySellerName(),
 				storeFacts.shippingBlurb(),
 				storeFacts.pickupBlurb(),
-				storeFacts.toneHint());
+				storeFacts.toneHint(),
+				optionalSentence(storeFacts.paymentBlurb()));
+	}
+
+	private static String optionalSentence(String fact) {
+		return StringUtils.hasText(fact) ? " " + fact.trim() : "";
 	}
 
 	public String shopSnippet() {

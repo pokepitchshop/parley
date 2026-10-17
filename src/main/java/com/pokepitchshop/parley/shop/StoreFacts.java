@@ -5,7 +5,8 @@ public record StoreFacts(
 		String ebaySellerName,
 		String shippingBlurb,
 		String pickupBlurb,
-		String toneHint) {
+		String toneHint,
+		String paymentBlurb) {
 
 	public static StoreFacts from(ShopProperties properties) {
 		return new StoreFacts(
@@ -13,6 +14,7 @@ public record StoreFacts(
 				properties.ebaySellerName(),
 				properties.shippingBlurb(),
 				properties.pickupBlurb(),
-				properties.toneHint());
+				properties.toneHint(),
+				properties.paymentBlurb());
 	}
 }
