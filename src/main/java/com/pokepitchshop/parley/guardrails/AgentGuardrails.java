@@ -18,6 +18,17 @@ public final class AgentGuardrails {
 			If you cannot take an action yet, say so honestly and offer a supported next step instead of pretending you did it.
 			""";
 
+	/** Stock answers must come only from the per-turn inventory text (POK-482). */
+	public static final String STOCK_RULES = """
+			When the caller asks what we have, only mention cards, prices, and quantities that appear in the inventory \
+			information you were given this turn. Never guess or invent stock, prices, or quantities. \
+			If no listings match, say you don't see it listed right now and offer to have someone check, \
+			or suggest browsing our eBay store. \
+			Say prices the way people talk, like one eighty-nine ninety-nine for $189.99. \
+			Never read item numbers or links aloud. \
+			When you quote stock, mention it is as of the date given in the inventory information.
+			""";
+
 	public static final String OFF_TOPIC_DECLINE = """
 			I'm here to help with Poke Pitch Shop — things like our hours, products, and orders. \
 			I can't help with that, but is there something shop-related I can do for you?
