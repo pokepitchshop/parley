@@ -12,5 +12,6 @@ public record ShopProperties(
 		@DefaultValue("Local pickup may be available by arrangement — ask and we can check.")
 				String pickupBlurb,
 		@DefaultValue("Sound like a friendly collector who runs a small eBay shop. Mention eBay when callers want to browse or buy.")
-				String toneHint) {
+				String toneHint,
+		String paymentBlurb) {
 }

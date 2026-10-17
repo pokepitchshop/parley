@@ -16,7 +16,13 @@ class ShopKnowledgeServiceTest {
 				"PokePitchShop",
 				"We ship cards nationwide via eBay.",
 				"Pickup available by arrangement.",
-				"Friendly collector tone."));
+				"Friendly collector tone.",
+				"All payments go through eBay checkout."));
+	}
+
+	@Test
+	void storeFactsSnippetIncludesPaymentBlurbWhenSet() {
+		assertThat(sut.storeFactsSnippet()).contains("All payments go through eBay checkout.");
 	}
 
 	@Test
@@ -28,6 +34,22 @@ class ShopKnowledgeServiceTest {
 		assertThat(snippet).contains("We ship cards nationwide via eBay.");
 		assertThat(snippet).contains("Pickup available by arrangement.");
 		assertThat(snippet).contains("Friendly collector tone.");
+	}
+
+	@Test
+	void storeFactsSnippetOmitsPaymentBlurbWhenUnset() {
+		sut = new ShopKnowledgeService(new ShopProperties(
+				"Poke Pitch Shop",
+				"PokePitchShop",
+				"We ship cards nationwide via eBay.",
+				"Pickup available by arrangement.",
+				"Friendly collector tone.",
+				null));
+
+		String snippet = sut.storeFactsSnippet();
+
+		assertThat(snippet).doesNotContain("null");
+		assertThat(snippet).contains("Pickup available by arrangement. Friendly collector tone. If asked");
 	}
 
 	@Test
