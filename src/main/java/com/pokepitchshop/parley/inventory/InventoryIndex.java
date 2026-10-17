@@ -77,6 +77,11 @@ public class InventoryIndex {
 
 	/** Top matching active listings for a caller utterance; empty when nothing shopping-related matches. */
 	public List<InventoryItem> match(String utterance) {
+		return match(utterance, properties.minScore());
+	}
+
+	/** Like {@link #match(String)}, but an item must share at least {@code minScore} meaningful tokens. */
+	public List<InventoryItem> match(String utterance, int minScore) {
 		Snapshot current = snapshot.get();
 		Set<String> wanted = normalizer.tokens(utterance);
 		if (wanted.isEmpty() || current.itemCount() == 0) {
@@ -89,7 +94,7 @@ public class InventoryIndex {
 			}
 		}
 		return scores.entrySet().stream()
-				.filter(entry -> entry.getValue() >= properties.minScore())
+				.filter(entry -> entry.getValue() >= minScore)
 				.sorted(Comparator.<Map.Entry<IndexedItem, Integer>>comparingInt(Map.Entry::getValue).reversed()
 						.thenComparing(entry -> entry.getKey().item().getQuantity(), Comparator.reverseOrder())
 						.thenComparing(entry -> entry.getKey().item().getImportedAt(),

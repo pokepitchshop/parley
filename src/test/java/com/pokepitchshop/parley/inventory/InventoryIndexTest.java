@@ -65,6 +65,15 @@ class InventoryIndexTest {
 	}
 
 	@Test
+	void genericShopWordsNeverMatchCardTitles() {
+		loadIndex(item("1", "Inventory Management R PIP #633 LP MTG Magic", 1),
+				item("2", "Stock Up U WOE #62 NM MTG Magic", 1),
+				item("3", "Item Store eBay Exclusive Promo", 1));
+
+		assertThat(sut.match("how many inventory items do you have in stock in your ebay store")).isEmpty();
+	}
+
+	@Test
 	void endedItemsAreNeverReturned() {
 		InventoryItem ended = item("2", "1989 UD #1 Griffey Jr RC PSA 10", 5);
 		ended.setStatus(InventoryItem.STATUS_ENDED);

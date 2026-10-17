@@ -101,6 +101,28 @@ class TurnContextServiceTest {
 	}
 
 	@Test
+	void cardNamedWithoutShoppingWordsStillCarriesItsListing() {
+		given(shopKnowledgeService.ebaySellerName()).willReturn("pokepitchshop");
+		loadIndex(
+				item("1", "Ice Tunnel L KHM #262 NM MTG Magic", null, "0.99", 1),
+				item("2", "Alpine Meadow L KHM #248 NM MTG Magic", null, "0.99", 1));
+
+		TurnContext context = sut.forCaller(PHONE, "What about an ice tunnel?");
+
+		assertThat(context.inventorySnippet())
+				.startsWith("Inventory (eBay store pokepitchshop, as of October 16, 2026):")
+				.contains("1) Ice Tunnel L KHM #262 NM MTG Magic — $0.99, 1 available.")
+				.doesNotContain("Alpine");
+	}
+
+	@Test
+	void singleWordOverlapWithoutShoppingWordsCarriesNoInventoryText() {
+		loadIndex(item("1", "Hour of Revelation R HOU #15 NM MTG Magic", null, "1.49", 1));
+
+		assertThat(sut.forCaller(PHONE, "What are your hours?").inventorySnippet()).isEmpty();
+	}
+
+	@Test
 	void emptyIndexBehavesLikeNoMatch() {
 		given(metaRepository.findById(InventoryMeta.SINGLETON_ID))
 				.willThrow(new DataAccessResourceFailureException("mongo down"));
